@@ -1,0 +1,3 @@
+[submodule "libfqfft"]
+	path = libfqfft
+	url = https://github.com/scipr-lab/libfqfft.git

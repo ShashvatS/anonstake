@@ -11,7 +11,6 @@ int main() {
     initFieldR();
 
     benchmarkFFT<FieldR>(12, 1 << 17);
-
-
+    
     return 0;
 }

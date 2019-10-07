@@ -4,7 +4,7 @@ find_path(GMP_INCLUDE_DIR NAMES gmp.h)
 find_library(GMP_LIBRARIES NAMES gmp libgmp)
 find_library(GMPXX_LIBRARIES NAMES gmpxx libgmpxx)
 
-add_executable(main main.cpp FR.h experimentation.cpp experimentation.h FR.cpp fft.cpp fft.h)
+add_executable(main main.cpp FR.h experimentation.cpp experimentation.h FR.cpp fft.tcc fft.h)
 target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/libfqfft)
 target_include_directories(main PUBLIC ${CMAKE_SOURCE_DIR}/libff)
 target_link_libraries(main libfqfft)

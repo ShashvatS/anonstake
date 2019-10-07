@@ -2,9 +2,16 @@
 // Created by shashvat on 10/5/19.
 //
 
-#include <iostream>
+//#define MULTICORE
+
+#include "FR.h"
+#include "fft.h"
 
 int main() {
-    std::cout << "Hello, World!" << std::endl;
+    initFieldR();
+
+    benchmarkFFT<FieldR>(12, 1 << 17);
+
+
     return 0;
 }

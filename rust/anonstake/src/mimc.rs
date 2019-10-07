@@ -1,23 +1,18 @@
-// For randomness (during paramgen and proof generation)
-use rand::thread_rng;
-
-// For benchmarking
-use std::time::{Duration, Instant};
-
-// Bring in some tools for using pairing-friendly curves
-use ff::{Field, ScalarEngine};
-use pairing::Engine;
-
-// We're going to use the BLS12-381 pairing-friendly elliptic curve.
-use pairing::bls12_381::Bls12;
-
 // We'll use these interfaces to construct our circuit.
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
-
 // We're going to use the Groth16 proving system.
 use bellman::groth16::{
-    create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof, Proof,
+    create_random_proof, generate_random_parameters, prepare_verifying_key, Proof, verify_proof,
 };
+// Bring in some tools for using pairing-friendly curves
+use ff::{Field, ScalarEngine};
+// We're going to use the BLS12-381 pairing-friendly elliptic curve.
+use pairing::bls12_381::Bls12;
+use pairing::Engine;
+// For randomness (during paramgen and proof generation)
+use rand::thread_rng;
+// For benchmarking
+use std::time::{Duration, Instant};
 
 const MIMC_ROUNDS: usize = 322;
 

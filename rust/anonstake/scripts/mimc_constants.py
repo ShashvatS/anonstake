@@ -11,7 +11,7 @@ if __name__ == "__main__":
     with open("constants.txt", "r") as f:
         for line in f:
             constant = int(line, 0)
-            template = "<Bls12 as ScalarEngine>::Fr::from_str(\"{}\").expect(\"failure generating constants\")"
+            template = "E::Fr::from_str(\"{}\").expect(\"failure generating constants\")"
             constants.append(template.format(constant))
 
     with open("mimc_constants.txt", "w") as f:

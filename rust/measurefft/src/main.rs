@@ -1,14 +1,16 @@
 #![feature(test)]
 extern crate test;
 
-use pairing::Engine;
-use pairing::bls12_381::Bls12;
-use bellman::domain::{EvaluationDomain, Scalar};
-use rand::thread_rng;
-use ff::{Field, PrimeField, ScalarEngine};
-use bellman::multicore::Worker;
 use std::sync::Arc;
-use std::time::{Instant};
+use std::time::Instant;
+
+use rand::thread_rng;
+
+use bellman::domain::{EvaluationDomain, Scalar};
+use bellman::multicore::Worker;
+use ff::{Field, PrimeField, ScalarEngine};
+use pairing::bls12_381::Bls12;
+use pairing::Engine;
 
 fn single_fft<E: Engine + ScalarEngine>(mut a: EvaluationDomain<E, Scalar<E>>, mut b: EvaluationDomain<E, Scalar<E>>, mut c: EvaluationDomain<E, Scalar<E>>, worker: &Worker) -> Arc<Vec<<E::Fr as PrimeField>::Repr>> {
     a.ifft(&worker);
@@ -84,8 +86,9 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use test::Bencher;
+
+    use super::*;
 
     #[bench]
     fn bench_minus_two(b: &mut Bencher) {

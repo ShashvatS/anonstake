@@ -19,3 +19,11 @@ byteorder = "1"
 rand_core = "0.5.1"
 zcash_primitives = { path = "../../librustzcash/zcash_primitives" }
 zcash_proofs = { path = "../../librustzcash/zcash_proofs" }
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "print_random_constants"
+path = "src/generate_random_constants.rs"

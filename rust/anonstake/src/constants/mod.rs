@@ -6,7 +6,7 @@ pub mod mimc_constants;
 
 pub struct Constants<'a, E: JubjubEngine>{
     mimc: mimc_constants::MiMCConstants<E>,
-    jubjub: &'a E::Params
+    pub(crate) jubjub: &'a E::Params
 }
 
 impl<'a, E: ScalarEngine + JubjubEngine> Constants<'_, E> {

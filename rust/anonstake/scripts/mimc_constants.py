@@ -9,10 +9,14 @@ if __name__ == "__main__":
         format_string = format_string.format(tmp)
 
     with open("constants.txt", "r") as f:
+        i = 0
         for line in f:
             constant = int(line, 0)
+            if i % 162 == 0:
+                constant = 0
             template = "E::Fr::from_str(\"{}\").expect(\"failure generating constants\")"
             constants.append(template.format(constant))
+            i += 1
 
     with open("mimc_constants.txt", "w") as f:
         i = 0

@@ -22,7 +22,7 @@ fn main() {
         let anonstake = AnonStake::<Bls12>::init_pure_random(&constants, true, 29);
         anonstake.synthesize(&mut cs).unwrap();
 
-        println!("{}", cs.num_inputs());
+        println!("{} {}", cs.num_constraints(), cs.num_inputs());
     }
 
     // Create parameters for our circuit

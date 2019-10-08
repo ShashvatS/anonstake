@@ -109,14 +109,11 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         //kind of hacky but whatever, do not have enough time
         let allocated_zero = AllocatedNum::alloc(cs.namespace(||"allocate fake zero"), || Ok(E::Fr::zero()))?;
 
-        cs.namespace(|| "calc a_pk");
-        let a_pk = self.mimc_prf(cs, "calc a_pk", a_sk, allocated_zero, &self.constants.mimc.prf_addr)?;
+        let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk, allocated_zero, &self.constants.mimc.prf_addr)?;
 
-        cs.namespace(|| "coin commitment computation");
-        let (cm, value, rho) = self.constrain_coin_commitment(cs, "coin commitment computation", a_pk)?;
+        let (cm, value, rho) = self.constrain_coin_commitment(cs.namespace(|| "coin commitment computation"), "coin commitment computation", a_pk)?;
 
-        cs.namespace(|| "coin commitment membership");
-        self.coin_commitment_membership(cs, "coin commitment membership", cm)?;
+        self.coin_commitment_membership(cs.namespace(|| "coin commitment membership"), "coin commitment membership", cm)?;
         Ok(())
     }
 }

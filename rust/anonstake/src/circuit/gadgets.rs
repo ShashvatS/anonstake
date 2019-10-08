@@ -14,7 +14,7 @@ use crate::constants::mimc_constants::MiMCConstants;
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
 
-    pub fn constrain_coin_commitment<CS>(&self, cs: &mut CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, AllocatedNum<E>), SynthesisError>
+    pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         // Compute note contents:
@@ -90,7 +90,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     }
 
     //copied directly from zcash
-    pub fn coin_commitment_membership<CS>(&self, cs: &mut CS, namespace: &str, cm: EdwardsPoint<E>) -> Result<(), SynthesisError>
+    pub fn coin_commitment_membership<CS>(&self, mut cs: CS, namespace: &str, cm: EdwardsPoint<E>) -> Result<(), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         // This is an injective encoding, as cur is a
@@ -177,7 +177,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     //input: already allocated
     //sk: already allocated
     //output
-    pub fn mimc_round<CS>(&self, cs: &mut CS, namespace: &str, sk: &AllocatedNum<E>, input: AllocatedNum<E>, round_constant: E::Fr, cur_round: usize) -> Result<AllocatedNum<E>, SynthesisError>
+    pub fn mimc_round<CS>(&self, mut cs: CS, namespace: &str, sk: &AllocatedNum<E>, input: AllocatedNum<E>, round_constant: E::Fr, cur_round: usize) -> Result<AllocatedNum<E>, SynthesisError>
     where CS: ConstraintSystem<E>
     {
         let g = || {
@@ -216,7 +216,8 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                    |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
                    |lc| lc + square.get_variable());
 
-        for i in 1..self.constants.mimc.num_rounds {
+
+        for i in 1..self.constants.mimc.exponent {
             square = square.square(cs.namespace(|| namespace.to_owned() + "square #" + i.to_string().as_ref()))?;
         }
 
@@ -251,15 +252,14 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok(output)
     }
 
-    pub fn mimc_prf<CS>(&self, cs: &mut CS, namespace: &str, sk: AllocatedNum<E>, input: AllocatedNum<E>, mimc_constants: &[E::Fr; 162]) -> Result<AllocatedNum<E>, SynthesisError>
+    pub fn mimc_prf<CS>(&self, mut cs: CS, namespace: &str, sk: AllocatedNum<E>, input: AllocatedNum<E>, mimc_constants: &[E::Fr; 162]) -> Result<AllocatedNum<E>, SynthesisError>
         where CS: ConstraintSystem<E>
     {
         let mut input = input;
 
         for i in 0..self.constants.mimc.num_rounds - 1 {
             let namespace = namespace.to_owned() + "round " + i.to_string().as_ref();
-            cs.namespace(|| namespace.to_owned() + "round " + i.to_string().as_ref());
-            input = self.mimc_round(cs, namespace.as_ref(), &sk, input, mimc_constants[i], i)?;
+            input = self.mimc_round(cs.namespace(|| namespace.to_owned() + "round " + i.to_string().as_ref()), namespace.as_ref(), &sk, input, mimc_constants[i], i)?;
         }
 
         {
@@ -302,7 +302,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                        |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
                        |lc| lc + square.get_variable());
 
-            for i in 1..self.constants.mimc.num_rounds {
+            for i in 1..self.constants.mimc.exponent {
                 square = square.square(cs.namespace(|| namespace.to_owned() + "square #" + i.to_string().as_ref()))?;
             }
 

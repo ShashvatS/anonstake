@@ -1,7 +1,7 @@
-use bellman::{Circuit, ConstraintSystem, SynthesisError};
+use bellman::{Circuit, ConstraintSystem, SynthesisError, Variable, LinearCombination};
 use zcash_primitives::jubjub::{JubjubEngine, FixedGenerators};
 use rand::{thread_rng, Rng};
-use ff::Field;
+use ff::{Field, ScalarEngine};
 use bellman::gadgets::{boolean, num, Assignment};
 use zcash_proofs::circuit::pedersen_hash::pedersen_hash;
 use zcash_primitives::pedersen_hash::Personalization;
@@ -9,9 +9,12 @@ use zcash_primitives::primitives::ValueCommitment;
 use zcash_proofs::circuit::ecc;
 use zcash_proofs::circuit::ecc::EdwardsPoint;
 use bellman::gadgets::boolean::field_into_boolean_vec_le;
+use bellman::gadgets::num::{AllocatedNum, Num};
+use crate::constants::mimc_constants::MiMCConstants;
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
-    pub fn constrain_coin_commitment<CS>(&self, cs: &mut CS, namespace: &str) -> Result<EdwardsPoint<E>, SynthesisError>
+
+    pub fn constrain_coin_commitment<CS>(&self, cs: &mut CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         // Compute note contents:
@@ -41,9 +44,12 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             note_contents.extend(value_bits);
         }
 
-        let a_pk_bits = field_into_boolean_vec_le(cs.namespace(|| namespace.to_owned() + "a_pk bit constrain"), self.aux_input.coin.a_pk)?;
+//        let a_pk_alloc = AllocatedNum::alloc(cs.namespace(|| "a_pk_alloc"), || self.aux_input.coin.a_pk.ok_or(SynthesisError::AssignmentMissing))?;
+        let a_pk_bits = a_pk.to_bits_le(cs.namespace(|| "a_pk_bits"))?;
+        let rho_alloc = AllocatedNum::alloc(cs.namespace(|| "cs alloc"), || self.aux_input.coin.rho.ok_or(SynthesisError::AssignmentMissing))?;
+        let rho_bits = rho_alloc.to_bits_le(cs.namespace(|| "rho bits"))?;
+
         note_contents.extend(a_pk_bits);
-        let rho_bits = field_into_boolean_vec_le(cs.namespace(|| namespace.to_owned() + "rho bit constrain"), self.aux_input.coin.rho)?;
         note_contents.extend(rho_bits);
 
         // Compute the hash of the note contents
@@ -80,7 +86,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         }
 
 
-        Ok(cm)
+        Ok((cm, value_num, rho_alloc))
     }
 
     //copied directly from zcash
@@ -165,6 +171,171 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             rt.inputize(cs.namespace(|| "anchor"))?;
 
             Ok(())
+        }
+    }
+
+    //input: already allocated
+    //sk: already allocated
+    //output
+    pub fn mimc_round<CS>(&self, cs: &mut CS, namespace: &str, sk: &AllocatedNum<E>, input: AllocatedNum<E>, round_constant: E::Fr, cur_round: usize) -> Result<AllocatedNum<E>, SynthesisError>
+    where CS: ConstraintSystem<E>
+    {
+        let g = || {
+            match sk.get_value().ok_or(SynthesisError::AssignmentMissing) {
+                Ok(sk2) => {
+                    match input.get_value().ok_or(SynthesisError::AssignmentMissing) {
+                        Ok(input2) => {
+                            let mut val = sk2.clone();
+                            val.add_assign(&input2);
+                            val.add_assign(&round_constant);
+                            Ok(val)
+                        },
+                        Err(e) => Err(e)
+                    }
+                },
+                Err(e) => Err(e)
+            }
+        };
+
+
+        let f = || {
+            match g() {
+                Ok(mut s) => {
+                    s.square();
+                    Ok(s)
+                },
+                Err(e) => Err(e)
+            }
+        };
+
+        let square_namespace = namespace.to_owned() + "first square round: " + cur_round.to_string().as_ref();
+        let mut square = AllocatedNum::alloc(cs.namespace(|| square_namespace), f)?;
+
+        cs.enforce(|| "first square",
+                   |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                   |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                   |lc| lc + square.get_variable());
+
+        for i in 1..self.constants.mimc.num_rounds {
+            square = square.square(cs.namespace(|| namespace.to_owned() + "square #" + i.to_string().as_ref()))?;
+        }
+
+        let curpower = square;
+        let f = || {
+            match curpower.get_value().ok_or(SynthesisError::AssignmentMissing) {
+                Ok(s) => {
+                    match g() {
+                        Ok(ss) => {
+                            if let Some(mut ssinv) = ss.inverse() {
+                                ssinv.mul_assign(&s);
+                                Ok(ssinv)
+                            } else {
+                                Err(SynthesisError::DivisionByZero)
+                            }
+                        },
+                        Err(e) => Err(e)
+                    }
+                },
+                Err(e) => Err(e)
+            }
+        };
+
+        let output_namespace = namespace.to_owned() + "output: " + cur_round.to_string().as_ref();
+        let output = AllocatedNum::alloc(cs.namespace(||output_namespace), f)?;
+
+        cs.enforce(|| "round output",
+        |lc|lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+        |lc|lc + output.get_variable(),
+        |lc|lc + curpower.get_variable());
+
+        Ok(output)
+    }
+
+    pub fn mimc_prf<CS>(&self, cs: &mut CS, namespace: &str, sk: AllocatedNum<E>, input: AllocatedNum<E>, mimc_constants: &[E::Fr; 162]) -> Result<AllocatedNum<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let mut input = input;
+
+        for i in 0..self.constants.mimc.num_rounds - 1 {
+            let namespace = namespace.to_owned() + "round " + i.to_string().as_ref();
+            cs.namespace(|| namespace.to_owned() + "round " + i.to_string().as_ref());
+            input = self.mimc_round(cs, namespace.as_ref(), &sk, input, mimc_constants[i], i)?;
+        }
+
+        {
+            let cur_round = self.constants.mimc.num_rounds - 1;
+            let round_constant = mimc_constants[cur_round].clone();
+
+            let g = || {
+                match sk.get_value().ok_or(SynthesisError::AssignmentMissing) {
+                    Ok(sk2) => {
+                        match input.get_value().ok_or(SynthesisError::AssignmentMissing) {
+                            Ok(input2) => {
+                                let mut val = sk2.clone();
+                                val.add_assign(&input2);
+                                val.add_assign(&round_constant);
+                                Ok(val)
+                            },
+                            Err(e) => Err(e)
+                        }
+                    },
+                    Err(e) => Err(e)
+                }
+            };
+
+
+            let f = || {
+                match g() {
+                    Ok(mut s) => {
+                        s.square();
+                        Ok(s)
+                    },
+                    Err(e) => Err(e)
+                }
+            };
+
+            let square_namespace = namespace.to_owned() + "first square round: " + cur_round.to_string().as_ref();
+            let mut square = AllocatedNum::alloc(cs.namespace(|| square_namespace), f)?;
+
+            cs.enforce(|| "first square",
+                       |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                       |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                       |lc| lc + square.get_variable());
+
+            for i in 1..self.constants.mimc.num_rounds {
+                square = square.square(cs.namespace(|| namespace.to_owned() + "square #" + i.to_string().as_ref()))?;
+            }
+
+            let curpower = square;
+            let f = || {
+                match curpower.get_value().ok_or(SynthesisError::AssignmentMissing) {
+                    Ok(s) => {
+                        match g() {
+                            Ok(ss) => {
+                                if let Some(mut ssinv) = ss.inverse() {
+                                    ssinv.mul_assign(&s);
+                                    ssinv.add_assign(sk.clone().get_value().get()?);
+                                    Ok(ssinv)
+                                } else {
+                                    Err(SynthesisError::DivisionByZero)
+                                }
+                            },
+                            Err(e) => Err(e)
+                        }
+                    },
+                    Err(e) => Err(e)
+                }
+            };
+
+            let output_namespace = namespace.to_owned() + "output: " + cur_round.to_string().as_ref();
+            let output = AllocatedNum::alloc(cs.namespace(||output_namespace), f)?;
+
+            cs.enforce(|| "round output",
+                       |lc|lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                       |lc|lc + output.get_variable() - sk.get_variable(),
+                       |lc|lc + curpower.get_variable());
+
+            Ok(output)
         }
     }
 

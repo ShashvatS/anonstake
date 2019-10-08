@@ -3,18 +3,18 @@ use ff::{PrimeField, ScalarEngine};
 pub type MiMCConstant<E> = [<E as ScalarEngine>::Fr; 162];
 
 pub struct MiMCConstants<E: ScalarEngine> {
-    prf_addr: MiMCConstant<E>,
-    prf_sn: MiMCConstant<E>,
+    pub prf_addr: MiMCConstant<E>,
+    pub prf_sn: MiMCConstant<E>,
     //should not need to be used
-    prf_pk: MiMCConstant<E>,
-    prf_tsn: MiMCConstant<E>,
-    prf_priority: MiMCConstant<E>,
-    prf_seed: MiMCConstant<E>,
-    prf_sel: [MiMCConstant<E>; 20],
+    pub prf_pk: MiMCConstant<E>,
+    pub prf_tsn: MiMCConstant<E>,
+    pub prf_priority: MiMCConstant<E>,
+    pub prf_seed: MiMCConstant<E>,
+    pub prf_sel: [MiMCConstant<E>; 20],
 
-    num_rounds: usize,
+    pub num_rounds: usize,
     //exponent actually 2^exponent - 1
-    exponent: usize
+    pub exponent: usize
 }
 
 impl<E: ScalarEngine> MiMCConstants<E> {

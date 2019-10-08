@@ -5,7 +5,7 @@ use crate::constants::mimc_constants::MiMCConstants;
 pub mod mimc_constants;
 
 pub struct Constants<'a, E: JubjubEngine>{
-    mimc: mimc_constants::MiMCConstants<E>,
+    pub mimc: mimc_constants::MiMCConstants<E>,
     pub(crate) jubjub: &'a E::Params
 }
 

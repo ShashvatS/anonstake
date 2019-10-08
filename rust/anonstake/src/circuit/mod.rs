@@ -8,6 +8,7 @@ pub mod anonstake_inputs;
 use anonstake_inputs::*;
 use crate::constants::Constants;
 use bellman::gadgets::num;
+use bellman::gadgets::num::AllocatedNum;
 
 pub mod gadgets;
 
@@ -102,8 +103,17 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 
 impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
     fn synthesize<CS: ConstraintSystem<E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
+
+        let a_sk = AllocatedNum::alloc(cs.namespace(|| "allocate a_sk"), || self.aux_input.a_sk.ok_or(SynthesisError::AssignmentMissing))?;
+
+        //kind of hacky but whatever, do not have enough time
+        let allocated_zero = AllocatedNum::alloc(cs.namespace(||"allocate fake zero"), || Ok(E::Fr::zero()))?;
+
+        cs.namespace(|| "calc a_pk");
+        let a_pk = self.mimc_prf(cs, "calc a_pk", a_sk, allocated_zero, &self.constants.mimc.prf_addr)?;
+
         cs.namespace(|| "coin commitment computation");
-        let cm = self.constrain_coin_commitment(cs, "coin commitment computation")?;
+        let (cm, value, rho) = self.constrain_coin_commitment(cs, "coin commitment computation", a_pk)?;
 
         cs.namespace(|| "coin commitment membership");
         self.coin_commitment_membership(cs, "coin commitment membership", cm)?;

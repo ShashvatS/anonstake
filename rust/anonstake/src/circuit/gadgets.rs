@@ -10,7 +10,7 @@ use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::num::{AllocatedNum, Num};
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
-    pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, AllocatedNum<E>), SynthesisError>
+    pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, Vec<Boolean>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         // Compute note contents:
@@ -20,14 +20,15 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         // Handle the value; we'll need it later for the
         // dummy input check.
         let mut value_num = num::Num::<E>::zero();
+
+        // Booleanize the value into little-endian bit order
+        let value_bits = boolean::u64_into_boolean_vec_le(
+            cs.namespace(|| namespace.to_owned() + "value"),
+            self.aux_input.coin.value,
+        )?;
+
         {
-
-            // Booleanize the value into little-endian bit order
-            let value_bits = boolean::u64_into_boolean_vec_le(
-                cs.namespace(|| namespace.to_owned() + "value"),
-                self.aux_input.coin.value,
-            )?;
-
+            
             // Compute the note's value as a linear combination
             // of the bits.
             let mut coeff = E::Fr::one();
@@ -37,7 +38,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             }
 
             // Place the value in the note
-            note_contents.extend(value_bits);
+            note_contents.extend(value_bits.clone());
         }
 
 //        let a_pk_alloc = AllocatedNum::alloc(cs.namespace(|| "a_pk_alloc"), || self.aux_input.coin.a_pk.ok_or(SynthesisError::AssignmentMissing))?;
@@ -82,7 +83,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         }
 
 
-        Ok((cm, value_num, rho_alloc))
+        Ok((cm, value_num, value_bits, rho_alloc))
     }
 
     //copied directly from zcash

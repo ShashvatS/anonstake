@@ -110,7 +110,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
 
         let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk, allocated_zero, &self.constants.mimc.prf_addr)?;
 
-        let (cm, value, rho) = self.constrain_coin_commitment(cs.namespace(|| "coin commitment computation"), "coin commitment computation", a_pk)?;
+        let (cm, value, value_bits, rho) = self.constrain_coin_commitment(cs.namespace(|| "coin commitment computation"), "coin commitment computation", a_pk)?;
 
         self.coin_commitment_membership(cs.namespace(|| "coin commitment membership"), "coin commitment membership", cm)?;
         Ok(())

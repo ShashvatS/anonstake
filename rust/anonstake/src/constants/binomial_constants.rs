@@ -198,7 +198,7 @@ impl TauValue {
                     E::Fr::from_str("486").expect("failure generating constants"),
                     E::Fr::from_str("1118").expect("failure generating constants")]
             }
-            TauValue::Tau500 => {
+            TauValue::Tau5000 => {
                 [E::Fr::from_str("0").expect("failure generating constants"),
                     E::Fr::from_str("0").expect("failure generating constants"),
                     E::Fr::from_str("0").expect("failure generating constants"),

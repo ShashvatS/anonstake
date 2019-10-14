@@ -10,12 +10,14 @@ use ff::{Field, ScalarEngine};
 pub mod constants;
 pub mod circuit;
 
+use crate::constants::binomial_constants::TauValue::Tau1500;
+
 
 fn main() {
     let rng = &mut thread_rng();
 
     let jubjub = JubjubBls12::new();
-    let constants = constants::Constants::<Bls12>::get(&jubjub);
+    let constants = constants::Constants::<Bls12>::get(&jubjub, Tau1500);
 
     {
         let mut cs = TestConstraintSystem::<Bls12>::new();

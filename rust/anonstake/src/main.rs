@@ -1,4 +1,4 @@
-use pairing::bls12_381::{Bls12, Fr};
+use pairing::bls12_381::{Bls12};
 use crate::circuit::AnonStake;
 use zcash_primitives::jubjub::JubjubBls12;
 use bellman::gadgets::test::TestConstraintSystem;

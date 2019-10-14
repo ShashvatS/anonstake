@@ -5,6 +5,7 @@ use pairing::bls12_381::Bls12;
 use std::io;
 
 fn main() {
+
     println!("Enter something to continue; this is anti-wall-of-text protection");
     let mut buffer = String::new();
     io::stdin().read_line(&mut buffer).expect("oh well, something went wrong");

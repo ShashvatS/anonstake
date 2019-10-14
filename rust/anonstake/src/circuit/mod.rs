@@ -7,7 +7,6 @@ pub mod anonstake_inputs;
 
 use anonstake_inputs::*;
 use crate::constants::Constants;
-use bellman::gadgets::num;
 use bellman::gadgets::num::AllocatedNum;
 
 pub mod gadgets;

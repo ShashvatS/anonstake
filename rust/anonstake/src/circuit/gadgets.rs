@@ -1,19 +1,15 @@
-use bellman::{Circuit, ConstraintSystem, SynthesisError, Variable, LinearCombination};
+use bellman::{ConstraintSystem, SynthesisError, Variable, LinearCombination};
 use zcash_primitives::jubjub::{JubjubEngine, FixedGenerators};
-use rand::{thread_rng, Rng};
-use ff::{Field, ScalarEngine};
+use ff::{Field, PrimeField, PrimeFieldRepr};
 use bellman::gadgets::{boolean, num, Assignment};
 use zcash_proofs::circuit::pedersen_hash::pedersen_hash;
 use zcash_primitives::pedersen_hash::Personalization;
-use zcash_primitives::primitives::ValueCommitment;
 use zcash_proofs::circuit::ecc;
 use zcash_proofs::circuit::ecc::EdwardsPoint;
-use bellman::gadgets::boolean::field_into_boolean_vec_le;
+use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::num::{AllocatedNum, Num};
-use crate::constants::mimc_constants::MiMCConstants;
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
-
     pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E>
     {
@@ -65,7 +61,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             // Booleanize the randomness for the note commitment
             let rcm = boolean::field_into_boolean_vec_le(
                 cs.namespace(|| namespace.to_owned() + "rcm"),
-                self.aux_input.coin.s
+                self.aux_input.coin.s,
             )?;
 
             // Compute the note commitment randomness in the exponent
@@ -73,7 +69,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                 cs.namespace(|| namespace.to_owned() + "computation of commitment randomness"),
                 FixedGenerators::NoteCommitmentRandomness,
                 &rcm,
-                self.constants.jubjub
+                self.constants.jubjub,
             )?;
 
             // Randomize the note commitment. Pedersen hashes are not
@@ -81,7 +77,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             cm = cm.add(
                 cs.namespace(|| namespace.to_owned() + "randomization of note commitment"),
                 &rcm,
-                self.constants.jubjub
+                self.constants.jubjub,
             )?;
         }
 
@@ -140,7 +136,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
 
             // Compute the new subtree value
             cur = pedersen_hash(
-                cs.namespace(|| "computation of pedersen hash"),
+                cs.namespace(|| "comthe original Zerocash paper even though we are creating a zero-knowledge proof for a muchmore complex statement.In the future, we would like to create an implementation of our scheme. However, this iscurrently impossible. We extensively use the MiMC block cipher in our scheme. Because ofits design, MiMC can only be used in a prime fieldFpwheregcd(3,p−1) = 1. Unfortunately,neither the libsnark library nor the bellman library for constructing zk-SNARKs have suitablefields.  MiMC  also  needs  to  be  more  thoroughly  analyzed.  Currently,  the  only  publishedcryptoanalysis on MiMC was done by the authors themselves.6    Ackputation of pedersen hash"),
                 Personalization::MerkleTree(i),
                 &preimage,
                 self.constants.jubjub,
@@ -178,7 +174,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     //sk: already allocated
     //output
     pub fn mimc_round<CS>(&self, mut cs: CS, namespace: &str, sk: &AllocatedNum<E>, input: AllocatedNum<E>, round_constant: E::Fr, cur_round: usize) -> Result<AllocatedNum<E>, SynthesisError>
-    where CS: ConstraintSystem<E>
+        where CS: ConstraintSystem<E>
     {
         let g = || {
             match sk.get_value().ok_or(SynthesisError::AssignmentMissing) {
@@ -189,10 +185,10 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                             val.add_assign(&input2);
                             val.add_assign(&round_constant);
                             Ok(val)
-                        },
+                        }
                         Err(e) => Err(e)
                     }
-                },
+                }
                 Err(e) => Err(e)
             }
         };
@@ -203,7 +199,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                 Ok(mut s) => {
                     s.square();
                     Ok(s)
-                },
+                }
                 Err(e) => Err(e)
             }
         };
@@ -233,21 +229,21 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                             } else {
                                 Err(SynthesisError::DivisionByZero)
                             }
-                        },
+                        }
                         Err(e) => Err(e)
                     }
-                },
+                }
                 Err(e) => Err(e)
             }
         };
 
         let output_namespace = namespace.to_owned() + "output: " + cur_round.to_string().as_ref();
-        let output = AllocatedNum::alloc(cs.namespace(||output_namespace), f)?;
+        let output = AllocatedNum::alloc(cs.namespace(|| output_namespace), f)?;
 
         cs.enforce(|| "round output",
-        |lc|lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
-        |lc|lc + output.get_variable(),
-        |lc|lc + curpower.get_variable());
+                   |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                   |lc| lc + output.get_variable(),
+                   |lc| lc + curpower.get_variable());
 
         Ok(output)
     }
@@ -275,10 +271,10 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                                 val.add_assign(&input2);
                                 val.add_assign(&round_constant);
                                 Ok(val)
-                            },
+                            }
                             Err(e) => Err(e)
                         }
-                    },
+                    }
                     Err(e) => Err(e)
                 }
             };
@@ -289,7 +285,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                     Ok(mut s) => {
                         s.square();
                         Ok(s)
-                    },
+                    }
                     Err(e) => Err(e)
                 }
             };
@@ -319,26 +315,315 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                                 } else {
                                     Err(SynthesisError::DivisionByZero)
                                 }
-                            },
+                            }
                             Err(e) => Err(e)
                         }
-                    },
+                    }
                     Err(e) => Err(e)
                 }
             };
 
             let output_namespace = namespace.to_owned() + "output: " + cur_round.to_string().as_ref();
-            let output = AllocatedNum::alloc(cs.namespace(||output_namespace), f)?;
+            let output = AllocatedNum::alloc(cs.namespace(|| output_namespace), f)?;
 
             cs.enforce(|| "round output",
-                       |lc|lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
-                       |lc|lc + output.get_variable() - sk.get_variable(),
-                       |lc|lc + curpower.get_variable());
+                       |lc| lc + sk.get_variable() + input.get_variable() + (round_constant, CS::one()),
+                       |lc| lc + output.get_variable() - sk.get_variable(),
+                       |lc| lc + curpower.get_variable());
 
             Ok(output)
         }
     }
 
+    pub fn leq_fixed<CS>(&self, mut cs: CS, namespace: &str, mut bits: Vec<Option<E::Fr>>, value: E::Fr, mut num_bits: usize, actual_value_var: Variable) -> Result<Vec<Variable>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let value: Vec<bool> = {
+            let mut res = vec![];
+            let mut value = value.into_repr();
+
+            for _i in 0..num_bits {
+                res.push(value.is_odd());
+                value.div2();
+            }
+
+            res
+        };
+
+        while !value[num_bits - 1] && num_bits > 0 {
+            num_bits -= 1;
+        }
+
+        if num_bits == 0 {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+
+        let num_bits = num_bits;
+
+        assert!(bits.len() >= num_bits);
+        bits.truncate(num_bits);
+
+
+        let mut prev_pi_val = bits[num_bits - 1];
+        let mut prev_pi_var: Option<Variable> = None;
+
+        let mut res_bits = vec![];
+
+        for i in (0..num_bits).rev() {
+            let new_bit = cs.alloc(|| format!("{}: leq_fixed allocate bit: {}", namespace, i),
+                                   || bits[i].ok_or(SynthesisError::AssignmentMissing))?;
+
+            res_bits.push(new_bit);
+
+            if value[i] {
+                if i == num_bits - 1 {
+                    prev_pi_var = Some(new_bit);
+                } else {
+                    let new_pi = cs.alloc(|| format!("{}: leq_fixed allocate pi_i: {}", namespace, i),
+                                          || {
+                                              let mut x = prev_pi_val.ok_or(SynthesisError::AssignmentMissing)?;
+                                              x.mul_assign(&bits[i].ok_or(SynthesisError::AssignmentMissing)?);
+                                              Ok(x)
+                                          })?;
+
+                    if let Some(prev_pi) = prev_pi_var {
+                        cs.enforce(|| format!("{}: constrain pi_i: {}", namespace, i),
+                                   |lc| lc + prev_pi,
+                                   |lc| lc + new_bit,
+                                   |lc| lc + new_pi);
+                    } else {
+                        return Err(SynthesisError::Unsatisfiable);
+                    }
+
+                    prev_pi_var = Some(new_pi);
+                    prev_pi_val = {
+                        match bits[i] {
+                            Some(mut t) => {
+                                t.mul_assign(&prev_pi_val.ok_or(SynthesisError::Unsatisfiable)?);
+                                Some(t)
+                            }
+                            None => None
+                        }
+                    };
+                }
+
+                cs.enforce(|| format!("{}: constrain bit {}", namespace, i),
+                           |lc| lc + CS::one() - new_bit,
+                           |lc| lc + new_bit,
+                           |lc| lc);
+            } else {
+                if let Some(pi_var) = prev_pi_var {
+                    cs.enforce(|| format!("{}: constrain bit {}", namespace, i),
+                               |lc| lc + CS::one() - pi_var - new_bit,
+                               |lc| lc + new_bit,
+                               |lc| lc);
+                } else {
+                    return Err(SynthesisError::Unsatisfiable);
+                }
+            }
+        }
+        res_bits.reverse();
+
+        let mut lc = LinearCombination::zero();
+        let mut coeff = E::Fr::one();
+        for i in &res_bits {
+            lc = lc + (coeff, *i);
+            coeff.double();
+        }
+
+        cs.enforce(|| format!("{}: constraining bits to value", namespace),
+                   |_| lc,
+                   |lc| lc + CS::one(),
+                   |lc| lc + actual_value_var);
+
+        Ok(res_bits)
+    }
+
+    pub fn leq_not_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, right_bits: &Vec<Boolean>) -> Result<(), SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        assert_eq!(left_bits.len(), right_bits.len());
+
+        let pi = Boolean::Constant(true);
+
+        for i in (0..right_bits.len()).rev() {
+            let t = Boolean::and(cs.namespace(|| format!("{}: calc t_i: {}", namespace, i)), &left_bits[i].not(), &right_bits[i])?.not();
+            let pi = Boolean::and(cs.namespace(|| format!("{}: calc pi__i: {}", namespace, i)), &t, &pi)?.not();
+            let d = Boolean::and(cs.namespace(|| format!("{}: calc d_i: {}", namespace, i)), &pi, &left_bits[i])?.not();
+            cs.enforce(|| format!("{}: constrain to 0: {}", namespace, i),
+                       |_| right_bits[i].not().lc(CS::one(), E::Fr::one()),
+                       |_| d.lc(CS::one(), E::Fr::one()),
+                       |lc| lc);
+        }
+
+        Ok(())
+    }
+
+    pub fn assignment_not_leq_not_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, right_bits: &Vec<Boolean>) -> Result<AllocatedBit, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        assert_eq!(left_bits.len(), right_bits.len());
+
+        let mut pi = Boolean::Constant(true);
+        let mut e_arr = vec![];
+
+        let mut sum: Num<E> = Num::zero();
+
+        for i in (0..right_bits.len()).rev() {
+            let t = Boolean::and(cs.namespace(|| format!("{}: calc t_i: {}", namespace, i)), &left_bits[i].not(), &right_bits[i])?.not();
+            pi = Boolean::and(cs.namespace(|| format!("{}: calc pi__i: {}", namespace, i)), &t, &pi)?.not();
+            let d = Boolean::and(cs.namespace(|| format!("{}: calc d_i: {}", namespace, i)), &pi, &left_bits[i])?.not();
+            let e = Boolean::and(cs.namespace(|| format!("{}: calc e_i: {}", namespace, i)), &right_bits[i].not(), &d)?.not();
+
+            sum = sum.add_bool_with_coeff(CS::one(), &e, E::Fr::one());
+            e_arr.push(e);
+        }
+
+        let bit = {
+            let b_val: Option<bool> = {
+                let calc = || {
+                    for bit in e_arr.as_slice() {
+                        if let Some(e) = bit.get_value() {
+                            if e {
+                                return Some(true);
+                            }
+                        } else {
+                            return None;
+                        }
+                    }
+
+                    return Some(false);
+                };
+
+                calc()
+            };
+
+            AllocatedBit::alloc(cs.namespace(|| format!("{} allocate bit", namespace)),
+                                b_val,
+            )?
+        };
+
+        let sum_inv = AllocatedNum::alloc(cs.namespace(|| namespace.to_owned() + ": sum inv"), || {
+            if bit.get_value().ok_or(SynthesisError::AssignmentMissing)? {
+                let sum_val = sum.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                return sum_val.inverse().ok_or(SynthesisError::DivisionByZero);
+            } else {
+                return Ok(E::Fr::one());
+            }
+        })?;
+
+        sum_inv.assert_nonzero(cs.namespace(|| namespace.to_owned() + "assert sum_inv non-zero"))?;
+
+        cs.enforce(|| namespace.to_owned() + "assert b correct",
+                   |_| sum.lc(E::Fr::one()),
+                   |lc| lc + sum_inv.get_variable(),
+                   |lc| lc + bit.get_variable(),
+        );
+
+
+        Ok(bit)
+    }
+
+    pub fn assignment_not_leq_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, value: E::Fr, mut num_bits: usize) -> Result<AllocatedBit, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let value: Vec<bool> = {
+            let mut res = vec![];
+            let mut value = value.into_repr();
+
+            for _i in 0..num_bits {
+                res.push(value.is_odd());
+                value.div2();
+            }
+
+            res
+        };
+
+        while !value[num_bits - 1] && num_bits > 0 {
+            num_bits -= 1;
+        }
+
+        if num_bits == 0 {
+            return Err(SynthesisError::Unsatisfiable);
+        }
+
+        let num_bits = num_bits;
+        let left_bits = left_bits;
+
+        assert!(left_bits.len() >= num_bits);
+
+        let mut pi = Boolean::Constant(true);
+        let mut e_arr = vec![];
+
+        let mut sum: Num<E> = Num::zero();
+
+        for i in (0..num_bits).rev() {
+            if value[i] {
+                pi = Boolean::and(cs.namespace(|| format!("{}: calc pi_i: {}", namespace, i)), &left_bits[i], &pi)?.not();
+            } else {
+                let e = Boolean::and(cs.namespace(|| format!("{}: calc e_i: {}", namespace, i)), &pi.not(), &left_bits[i])?.not();
+                sum = sum.add_bool_with_coeff(CS::one(), &e, E::Fr::one());
+                e_arr.push(e);
+            }
+        }
+
+        let bit = {
+            let b_val: Option<bool> = {
+                let calc = || {
+                    for bit in e_arr.as_slice() {
+                        if let Some(e) = bit.get_value() {
+                            if e {
+                                return Some(true);
+                            }
+                        } else {
+                            return None;
+                        }
+                    }
+
+                    return Some(false);
+                };
+
+                calc()
+            };
+
+            AllocatedBit::alloc(cs.namespace(|| format!("{} allocate bit", namespace)),
+                                b_val,
+            )?
+        };
+
+        let sum_inv = AllocatedNum::alloc(cs.namespace(|| namespace.to_owned() + ": sum inv"), || {
+            if bit.get_value().ok_or(SynthesisError::AssignmentMissing)? {
+                let sum_val = sum.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                return sum_val.inverse().ok_or(SynthesisError::DivisionByZero);
+            } else {
+                return Ok(E::Fr::one());
+            }
+        })?;
+
+        sum_inv.assert_nonzero(cs.namespace(|| namespace.to_owned() + "assert sum_inv non-zero"))?;
+
+        cs.enforce(|| namespace.to_owned() + "assert b correct",
+                   |_| sum.lc(E::Fr::one()),
+                   |lc| lc + sum_inv.get_variable(),
+                   |lc| lc + bit.get_variable(),
+        );
+
+
+        Ok(bit)
+    }
+
+    pub fn crh<CS>(&self, mut cs: CS, namespace: &str, bits: &[Boolean]) -> Result<EdwardsPoint<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let cm: EdwardsPoint<E> = pedersen_hash(
+            cs.namespace(|| namespace.to_owned() + "compute hash"),
+            Personalization::NoteCommitment,
+            bits,
+            self.constants.jubjub,
+        )?;
+
+        Ok(cm)
+    }
 }
 
 

@@ -7,7 +7,7 @@ pub enum TauValue {
     Tau2990,
 }
 
-pub struct BinomialConstants<E: ScalarEngine>([Vec<E::Fr>; 60], [E::Fr; 60]);
+pub struct BinomialConstants<E: ScalarEngine>(pub [Vec<E::Fr>; 60], pub [E::Fr; 60]);
 
 impl TauValue {
     pub fn new<E: ScalarEngine>(&self) -> BinomialConstants<E> {

@@ -5,7 +5,6 @@ use bellman::gadgets::test::TestConstraintSystem;
 use bellman::Circuit;
 use rand::thread_rng;
 use bellman::groth16::{create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof};
-use ff::{Field, ScalarEngine};
 
 pub mod constants;
 pub mod circuit;
@@ -42,6 +41,6 @@ fn main() {
     let pvk = prepare_verifying_key(&params.vk);
 
     //let result = verify_proof(&pvk, &proof, &[]).unwrap();
-    let result = verify_proof(&pvk, &proof, &[<Bls12 as ScalarEngine>::Fr::random(rng)]).unwrap();
-    println!("verification result: {} (should be false)", result);
+    //let result = verify_proof(&pvk, &proof, &[<Bls12 as ScalarEngine>::Fr::random(rng)]).unwrap();
+    //println!("verification result: {} (should be false)", result);
 }

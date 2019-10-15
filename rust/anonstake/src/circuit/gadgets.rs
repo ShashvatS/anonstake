@@ -28,7 +28,6 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         )?;
 
         {
-            
             // Compute the note's value as a linear combination
             // of the bits.
             let mut coeff = E::Fr::one();
@@ -351,7 +350,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             res
         };
 
-        while !value[num_bits - 1] && num_bits > 0 {
+        while num_bits > 0 && !value[num_bits - 1] {
             num_bits -= 1;
         }
 
@@ -460,7 +459,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok(())
     }
 
-    pub fn assignment_not_leq_not_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, right_bits: &Vec<Boolean>) -> Result<AllocatedBit, SynthesisError>
+    pub fn assignment_not_leq_not_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, right_bits: &Vec<Boolean>) -> Result<Boolean, SynthesisError>
         where CS: ConstraintSystem<E>
     {
         assert_eq!(left_bits.len(), right_bits.len());
@@ -522,10 +521,10 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         );
 
 
-        Ok(bit)
+        Ok(Boolean::Is(bit))
     }
 
-    pub fn assignment_not_leq_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, value: E::Fr, mut num_bits: usize) -> Result<AllocatedBit, SynthesisError>
+    pub fn assignment_not_leq_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, value: E::Fr, mut num_bits: usize) -> Result<Boolean, SynthesisError>
         where CS: ConstraintSystem<E>
     {
         let value: Vec<bool> = {
@@ -540,12 +539,13 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             res
         };
 
-        while !value[num_bits - 1] && num_bits > 0 {
+        while num_bits > 0 && !value[num_bits - 1] {
             num_bits -= 1;
         }
 
         if num_bits == 0 {
-            return Err(SynthesisError::Unsatisfiable);
+            return Ok(Boolean::Constant(true));
+//            return Err(SynthesisError::Unsatisfiable);
         }
 
         let num_bits = num_bits;
@@ -610,7 +610,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         );
 
 
-        Ok(bit)
+        Ok(Boolean::Is(bit))
     }
 
     pub fn crh<CS>(&self, mut cs: CS, namespace: &str, bits: &[Boolean]) -> Result<EdwardsPoint<E>, SynthesisError>
@@ -624,6 +624,293 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         )?;
 
         Ok(cm)
+    }
+
+    pub fn sub_binomial_regular<CS>(&self, mut cs: CS, namespace: &str, idx: usize, rand_bits: &Vec<Boolean>) -> Result<Num<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let mut num: Num<E> = Num::zero();
+        let b_one = Boolean::Constant(true);
+        num = num.add_bool_with_coeff(CS::one(), &b_one, self.constants.binomial.1[idx].clone());
+
+        for i in 0..self.constants.binomial.0[idx].len() {
+            let mut c = self.constants.binomial.0[idx][i].clone();
+            c.sub_assign(&E::Fr::one());
+            let bit = self.assignment_not_leq_fixed(cs.namespace(|| format!("{}: {} comparison # {}", namespace, idx, i)), format!("{}: {} comparison # {}", namespace, idx, i).as_ref(), rand_bits, c, 80)?;
+            num = num.add_bool_with_coeff(CS::one(), &bit, E::Fr::one());
+        }
+
+        Ok(num)
+    }
+
+    pub fn sub_binomial_binary_search<CS>(&self, mut cs: CS, namespace: &str, idx: usize, rand_bits: &Vec<Boolean>) -> Result<Num<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let log_num_values = {
+            let num_binom_values = (self.constants.binomial.0[idx].len() + 1) as f64;
+            num_binom_values.log2() as usize
+        };
+
+        let constants = {
+            let mut constants = self.constants.binomial.0[idx].clone();
+
+            for i in 0..constants.len() {
+                constants[i].sub_assign(&E::Fr::one());
+            }
+
+
+            while constants.len() != (2 << log_num_values) - 1 {
+                let mut a = E::Fr::one();
+                a.negate();
+                constants.push(a);
+            }
+
+            constants
+        };
+
+        let mut covered = vec![];
+        for _i in 0..((2 << log_num_values) - 1) {
+            covered.push(false);
+        }
+
+        let mut bits: Vec<Boolean> = vec![];
+
+        let list_list_start = {
+            let mut list_list_start = vec![];
+            for step in 0..log_num_values {
+                let list_start = {
+                    let mut list = vec![];
+                    for i in 1..(1 + constants.len()) {
+                        if (i & (2 << step) != 0) && !covered[i - 1] {
+                            covered[i - 1] = true;
+                            list.push(i - 1);
+                        }
+                    }
+
+                    list
+                };
+
+                list_list_start.push(list_start);
+            }
+
+            list_list_start
+        };
+
+        for step in (0..log_num_values).rev() {
+            let list_start = list_list_start[step].clone();
+
+            //first round should be different
+            if step == log_num_values - 1 {
+                let bit = self.assignment_not_leq_fixed(cs.namespace(|| format!("{}: first bit comparision", namespace)), format!("{}: first bit comparision", namespace).as_ref(), rand_bits, constants[list_start[0]], 80)?;
+                bits.push(bit);
+                continue;
+            }
+
+            let mut list_num = {
+                let mut list = vec![];
+                for i in list_start {
+                    let mut num = Num::<E>::zero();
+                    num = num.add_bool_with_coeff(CS::one(), &Boolean::Constant(true), constants[i]);
+                    list.push(num);
+                }
+
+                list
+            };
+
+
+            let mut count = 0;
+
+            for bit in bits.iter().rev() {
+                let mut new_list_num = vec![];
+
+                for i in 0..list_num.len() {
+                    //have not learned how to do skipping for loops yet oops
+                    if i % 2 == 1 { continue; }
+
+                    count = count + 1;
+
+                    let n0 = &list_num[i];
+                    let n1 = &list_num[i + 1];
+
+                    let namespace2 = format!("{}: advanced binomial sampling {} {} {}", namespace, i, step, count);
+
+
+                    let selected = AllocatedNum::alloc(cs.namespace(|| namespace2), || {
+                        if bit.get_value().ok_or(SynthesisError::AssignmentMissing)? {
+                            return n1.get_value().ok_or(SynthesisError::AssignmentMissing);
+                        } else { return n0.get_value().ok_or(SynthesisError::AssignmentMissing); }
+                    })?;
+
+                    let constraint = format!("{}: advanced binomial sampling constraint {} {} {}", namespace, i, step, count);
+
+                    let mut mone = E::Fr::one();
+                    mone.negate();
+
+                    cs.enforce(|| constraint,
+                               |_| n1.lc(E::Fr::one()) - &n0.lc(E::Fr::one()),
+                               |_| bit.lc(CS::one(), E::Fr::one()),
+                               |_| n0.lc(mone) + selected.get_variable());
+
+                    new_list_num.push(Num::from(selected));
+                }
+
+                list_num = new_list_num;
+            }
+            let num = &list_num[0];
+            //finally have the selected constant
+
+            let value = num.get_value();
+            let values = match value {
+                Some(value) => {
+                    let mut value = value.into_repr();
+                    let mut tmp = Vec::with_capacity(80);
+
+                    for _i in 0..80 {
+                        tmp.push(Some(value.is_odd()));
+                        value.div2();
+                    }
+
+                    tmp
+                }
+                None => vec![None; 80],
+            };
+
+            let right_bits = values
+                .into_iter()
+                .enumerate()
+                .map(|(i, b)| {
+                    Ok(Boolean::from(AllocatedBit::alloc(
+                        cs.namespace(|| format!("{} {} bit {}", namespace, step, i)),
+                        b,
+                    )?))
+                })
+                .collect::<Result<Vec<_>, SynthesisError>>()?;
+
+            let mut value_num = Num::zero();
+            let mut coeff = E::Fr::one();
+            for bit in &right_bits {
+                value_num = value_num.add_bool_with_coeff(CS::one(), bit, coeff);
+                coeff.double();
+            }
+
+            cs.enforce(|| format!("{} make sure that bits are of correct selected value {}", namespace, step),
+                       |_| value_num.lc(E::Fr::one()),
+                       |lc| lc + CS::one(),
+                       |_| num.lc(E::Fr::one()));
+
+            //assignment_not_leq_not_fixed<CS>(&self, mut cs: CS, namespace: &str, left_bits: &Vec<Boolean>, right_bits: &Vec<Boolean>)
+            let new_bit = self.assignment_not_leq_not_fixed(cs.namespace(|| format!("{}{} actual comparision", namespace, step)), format!("{}{} actual comparision", namespace, step).as_ref(), &rand_bits, &right_bits)?;
+            bits.push(new_bit);
+        }
+
+        let mut num = Num::zero();
+        let mut coeff = E::Fr::one();
+
+        for bit in bits.iter().rev() {
+            num = num.add_bool_with_coeff(CS::one(), &bit, coeff);
+            coeff.double();
+        }
+
+        Ok(num)
+    }
+
+    pub fn calc_num_selections<CS>(&self, mut cs: CS, namespace: &str, value_bits: &[Boolean], hash: &AllocatedNum<E>, a_sk: &AllocatedNum<E>) -> Result<AllocatedNum<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let random_bits = {
+            let mut random_bits = vec![];
+
+            //screw it, hardcoded for num
+            let num_prfs: usize = 20;
+            let mut rand_values = vec![];
+            for i in 0..num_prfs {
+                let namespace2 = || format!("{}: mimc prf {}", namespace, i);
+                let random = self.mimc_prf(cs.namespace(namespace2), namespace2().as_ref(), a_sk.clone(), hash.clone(), &self.constants.mimc.prf_sel[i])?;
+                rand_values.push(random);
+            }
+
+            for i in 0..20 {
+                let rand = &rand_values[i];
+                let bits = rand.to_bits_le_strict(cs.namespace(|| format!("{}: get random val bits {}", namespace, i)))?;
+
+                let mut b1 = vec![];
+                let mut b2 = vec![];
+                let mut b3 = vec![];
+
+                b1.extend_from_slice(&bits[0..80]);
+                b2.extend_from_slice(&bits[80..160]);
+                b3.extend_from_slice(&bits[160..240]);
+
+                random_bits.push(b1);
+                random_bits.push(b2);
+                random_bits.push(b3);
+            }
+
+            random_bits
+        };
+
+        let mut nums = vec![];
+
+        for i in 0..60 {
+            let num_binom_values = self.constants.binomial.0[i].len();
+            if num_binom_values == 0 {
+                continue;
+            }
+
+            let log_num_values = {
+                let num_binom_values = (num_binom_values + 1) as f64;
+                num_binom_values.log2() as usize
+            };
+
+            let calc_constraints_regular = 163 * num_binom_values;
+            //println!("{}", log_num_values);
+            let calc_constraints_advanced = (2 << log_num_values) + 403 * log_num_values - 241;
+
+            let num =
+                if calc_constraints_regular < calc_constraints_advanced {
+                    self.sub_binomial_regular(cs.namespace(|| format!("{}: sub binomial {}", namespace, i)), format!("{}: sub binomial {}", namespace, i).as_ref(), i, random_bits[i].as_ref())?
+                } else {
+                    self.sub_binomial_binary_search(cs.namespace(|| format!("{}: sub binomial {}", namespace, i)), format!("{}: sub binomial {}", namespace, i).as_ref(), i, random_bits[i].as_ref())?
+                };
+
+            let num2 = AllocatedNum::alloc(cs.namespace(|| format!("{}: allocate result {}", namespace, i)), || {
+                if value_bits[i].get_value().ok_or(SynthesisError::AssignmentMissing)? {
+                    Ok(num.get_value().ok_or(SynthesisError::AssignmentMissing)?)
+                } else {
+                    Ok(E::Fr::zero())
+                }
+            })?;
+
+            cs.enforce(|| format!("constrain j_{} to 0 if bit is not set properly", i),
+                       |_| num.lc(E::Fr::one()),
+                       |_| value_bits[i].lc(CS::one(), E::Fr::one()),
+                       |lc| lc + num2.get_variable(),
+            );
+
+            nums.push(num2);
+        }
+
+        let num_selected = AllocatedNum::alloc(cs.namespace(|| format!("{}: allocate j", namespace)), || {
+            let mut val = E::Fr::zero();
+            for num in nums.as_slice() {
+                let num = num.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                val.add_assign(&num);
+            }
+            Ok(val)
+        })?;
+
+        let mut lc = LinearCombination::<E>::zero();
+        for num in nums.as_slice() {
+            lc = lc + num.get_variable();
+        }
+
+        cs.enforce(|| "calculation of j",
+                   |_| lc,
+                   |lc| lc + CS::one(),
+                   |lc| lc + num_selected.get_variable());
+
+
+        Ok(num_selected)
     }
 }
 

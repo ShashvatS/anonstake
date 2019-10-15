@@ -8,7 +8,10 @@ pub mod binomial_constants;
 pub struct Constants<'a, E: JubjubEngine>{
     pub mimc: mimc_constants::MiMCConstants<E>,
     pub(crate) jubjub: &'a E::Params,
-    pub binomial: binomial_constants::BinomialConstants<E>
+    pub binomial: binomial_constants::BinomialConstants<E>,
+    /* maximum value is actually 2**max_value - 1 */
+    pub max_value: usize,
+    pub precision: usize
 }
 
 impl<'a, E: ScalarEngine + JubjubEngine> Constants<'_, E> {
@@ -16,7 +19,9 @@ impl<'a, E: ScalarEngine + JubjubEngine> Constants<'_, E> {
         Constants {
             mimc: MiMCConstants::get(),
             jubjub: jubjub,
-            binomial: tau_value.new()
+            binomial: tau_value.new(),
+            max_value: 60,
+            precision: 80
         }
     }
 

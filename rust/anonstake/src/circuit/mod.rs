@@ -108,11 +108,36 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         //kind of hacky but whatever, do not have enough time
         let allocated_zero = AllocatedNum::alloc(cs.namespace(||"allocate fake zero"), || Ok(E::Fr::zero()))?;
 
-        let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk, allocated_zero, &self.constants.mimc.prf_addr)?;
+        let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk.clone(), allocated_zero, &self.constants.mimc.prf_addr)?;
 
         let (cm, value, value_bits, rho) = self.constrain_coin_commitment(cs.namespace(|| "coin commitment computation"), "coin commitment computation", a_pk)?;
 
         self.coin_commitment_membership(cs.namespace(|| "coin commitment membership"), "coin commitment membership", cm)?;
+
+        let role = AllocatedNum::alloc(cs.namespace(||"allocate role"), ||self.pub_input.role.ok_or(SynthesisError::AssignmentMissing))?;
+        let seed_sel = AllocatedNum::alloc(cs.namespace(||"allocate seed_sel"), || self.pub_input.seed.ok_or(SynthesisError::AssignmentMissing))?;
+
+        let role_bits = role.to_bits_le_strict(cs.namespace(|| "bits of role"))?;
+        let seed_sel_bits = seed_sel.to_bits_le_strict(cs.namespace(||"bits of seed_sel"))?;
+
+
+        let hash_role_seed = {
+            let mut a = role_bits.clone();
+            a.extend(seed_sel_bits.clone());
+
+            self.crh(cs.namespace(||"hash role seed_sel"), "hash role and seed", a.as_slice())?
+        };
+
+        self.calc_num_selections(cs.namespace(|| "calc number selections"), "calc number selections", value_bits.as_slice(), hash_role_seed.get_x(), &a_sk)?;
+
+
+
+
+
+
+
+
+
         Ok(())
     }
 }

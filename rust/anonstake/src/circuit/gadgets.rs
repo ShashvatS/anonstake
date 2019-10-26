@@ -146,25 +146,110 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         }
 
         {
-            let real_anchor_value = self.pub_input.root_cm;
+//            let real_anchor_value = self.pub_input.root_cm;
+
+            //slightly lazy, allocating an extra variable, whatever
 
             // Allocate the "real" anchor that will be exposed.
             let rt = num::AllocatedNum::alloc(cs.namespace(|| "conditional anchor"), || {
-                Ok(*real_anchor_value.get()?)
+                cur.get_value().ok_or(SynthesisError::AssignmentMissing)
             })?;
 
             // (cur - rt) * value = 0
             // if value is zero, cur and rt can be different
             // if value is nonzero, they must be equal
-//        cs.enforce(
-//            || "conditionally enforce correct root",
-//            |lc| lc + cur.get_variable() - rt.get_variable(),
-//            |lc| lc + &value_num.lc(E::Fr::one()),
-//            |lc| lc,
-//        );
+            cs.enforce(
+                || "conditionally enforce correct root",
+                |lc| lc + cur.get_variable() - rt.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
 
             // Expose the anchor
             rt.inputize(cs.namespace(|| "anchor"))?;
+
+            Ok(())
+        }
+    }
+
+    //modified from above
+    pub fn serial_number_nonmembership<CS>(&self, mut cs: CS, namespace: &str, sn_box: AllocatedNum<E>) -> Result<(), SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        // This is an injective encoding, as cur is a
+        // point in the prime order subgroup.
+        let mut cur = sn_box;
+
+        // Ascend the merkle tree authentication path
+        for (i, e) in self.aux_input.sn_merkle_path.as_slice().iter().enumerate() {
+//        for (i, e) in self.aux_input.cm_merkle_path.clone().into_iter().enumerate() {
+            let cs = &mut cs.namespace(|| namespace.to_owned() + format!("merkle tree hash {}", i).as_ref());
+
+            // Determines if the current subtree is the "right" leaf at this
+            // depth of the tree.
+            let cur_is_right = boolean::Boolean::from(boolean::AllocatedBit::alloc(
+                cs.namespace(|| "position bit"),
+                e.map(|e| e.1),
+            )?);
+
+            // Push this boolean for nullifier computation later
+
+            //not sure what this is for, apperently used to calculated the nullifier?
+            //nullifier is the serial number, it seems that this bit is used to modify the serial number...
+            //for some sort of attack not covered by Zerocash paper?
+            //will not use in self bc research codez
+            //position_bits.push(cur_is_right.clone());
+
+            // Witness the authentication path element adjacent
+            // at this depth.
+            let path_element =
+                num::AllocatedNum::alloc(cs.namespace(|| "path element"), || Ok(e.get()?.0))?;
+
+            // Swap the two if the current subtree is on the right
+            let (xl, xr) = num::AllocatedNum::conditionally_reverse(
+                cs.namespace(|| "conditional reversal of preimage"),
+                &cur,
+                &path_element,
+                &cur_is_right,
+            )?;
+
+            // We don't need to be strict, because the function is
+            // collision-resistant. If the prover witnesses a congruency,
+            // they will be unable to find an authentication path in the
+            // tree with high probability.
+            let mut preimage = vec![];
+            preimage.extend(xl.to_bits_le(cs.namespace(|| "xl into bits"))?);
+            preimage.extend(xr.to_bits_le(cs.namespace(|| "xr into bits"))?);
+
+            // Compute the new subtree value
+            cur = pedersen_hash(
+                cs.namespace(|| "comthe original Zerocash paper even though we are creating a zero-knowledge proof for a muchmore complex statement.In the future, we would like to create an implementation of our scheme. However, this iscurrently impossible. We extensively use the MiMC block cipher in our scheme. Because ofits design, MiMC can only be used in a prime fieldFpwheregcd(3,p−1) = 1. Unfortunately,neither the libsnark library nor the bellman library for constructing zk-SNARKs have suitablefields.  MiMC  also  needs  to  be  more  thoroughly  analyzed.  Currently,  the  only  publishedcryptoanalysis on MiMC was done by the authors themselves.6    Ackputation of pedersen hash"),
+                Personalization::MerkleTree(i),
+                &preimage,
+                self.constants.jubjub,
+            )?
+                .get_x()
+                .clone(); // Injective encoding
+        }
+
+        {
+            // Allocate the "real" anchor that will be exposed.
+            let rt = num::AllocatedNum::alloc(cs.namespace(|| "sn conditional anchor"), || {
+                cur.get_value().ok_or(SynthesisError::AssignmentMissing)
+            })?;
+
+            // (cur - rt) * value = 0
+            // if value is zero, cur and rt can be different
+            // if value is nonzero, they must be equal
+        cs.enforce(
+            || "conditionally enforce correct root",
+            |lc| lc + cur.get_variable() - rt.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+
+            // Expose the anchor
+            rt.inputize(cs.namespace(|| "sn anchor"))?;
 
             Ok(())
         }
@@ -613,7 +698,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok(Boolean::Is(bit))
     }
 
-    pub fn crh<CS>(&self, mut cs: CS, namespace: &str, bits: &[Boolean]) -> Result<EdwardsPoint<E>, SynthesisError>
+    pub fn crh<CS>(&self, mut cs: CS, namespace: &str, bits: &[Boolean]) -> Result<AllocatedNum<E>, SynthesisError>
         where CS: ConstraintSystem<E>
     {
         let cm: EdwardsPoint<E> = pedersen_hash(
@@ -623,7 +708,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             self.constants.jubjub,
         )?;
 
-        Ok(cm)
+        Ok(cm.get_x().clone())
     }
 
     pub fn sub_binomial_regular<CS>(&self, mut cs: CS, namespace: &str, idx: usize, rand_bits: &Vec<Boolean>) -> Result<Num<E>, SynthesisError>

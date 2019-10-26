@@ -1,5 +1,6 @@
 use ff::{PrimeField, ScalarEngine};
 
+#[derive(Clone)]
 pub enum TauValue {
     Tau2000,
     Tau1500,

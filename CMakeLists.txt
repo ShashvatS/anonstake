@@ -9,3 +9,4 @@ add_subdirectory(libfqfft)
 add_library(libfqfft INTERFACE IMPORTED)
 
 add_subdirectory(main)
+add_subdirectory(fftlib)

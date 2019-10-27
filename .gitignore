@@ -1,3 +1,5 @@
 /cmake-build-debug/
 /cmake-build-release/
 /rust/measurefft/target/
+/rust/anonstake/target/
+/build

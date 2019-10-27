@@ -3,6 +3,7 @@ name = "anonstake"
 version = "0.1.0"
 authors = ["Shashvat Srivastava <shashvat.sri@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,6 +20,9 @@ byteorder = "1"
 rand_core = "0.5.1"
 zcash_primitives = { path = "../../librustzcash/zcash_primitives" }
 zcash_proofs = { path = "../../librustzcash/zcash_proofs" }
+
+[build-dependencies]
+cmake = "0.1.42"
 
 [[bin]]
 name = "main"

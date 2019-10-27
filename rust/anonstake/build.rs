@@ -11,5 +11,6 @@ fn main() {
         .expect("failed to execute process");
 
     println!("cargo:rustc-link-search=native={}", out_dir);
-    println!("cargo:rustc-link-lib=static=fft");
+    println!("cargo:rustc-link-lib=dylib=fft");
+    println!("cargo:rustc-flags=-l dylib=stdc++");
 }

@@ -4,7 +4,7 @@ find_path(GMP_INCLUDE_DIR NAMES gmp.h)
 find_library(GMP_LIBRARIES NAMES gmp libgmp)
 find_library(GMPXX_LIBRARIES NAMES gmpxx libgmpxx)
 
-add_library(fft main.cpp)
+add_library(fft SHARED link.cpp FR.h FR.cpp fft.tcc fft.h)
 target_include_directories(fft PUBLIC ${CMAKE_SOURCE_DIR}/libfqfft)
 target_include_directories(fft PUBLIC ${CMAKE_SOURCE_DIR}/libff)
 target_link_libraries(fft libfqfft)

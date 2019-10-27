@@ -1,11 +1,11 @@
 //
-// Created by shashvat on 10/26/19.
+// Created by shashvat on 10/6/19.
 //
-#include <libff/algebra/fields/bigint.hpp>
-#include <libff/algebra/fields/fp.hpp>
+
+#include "FR.h"
 
 const bigint_r prime_r("52435875175126190479447740508185965837690552500527"
-                       "637822603658699938581184513");
+                 "637822603658699938581184513");
 
 void initFieldR() {
     assert(FieldR::modulus_is_valid());
@@ -35,7 +35,7 @@ void initFieldR() {
 }
 
 void checkFieldR() {
-    std::cout << "Checking FieldR valid (not complete check)\n";
+    std::cout << "Checking FieldR valid (not complete check)" << std::endl;
     assert(FieldR::modulus_is_valid());
 
     {
@@ -66,15 +66,3 @@ void checkFieldR() {
 
     assert((FieldR::nqr ^ FieldR::t) == FieldR::nqr_to_t);
 }
-
-
-extern "C"
-void nothing() {
-    initFieldR();
-//    printf("nothing");
-}
-
-int run() {
-    return 1 + 2 + 3;
-}
-

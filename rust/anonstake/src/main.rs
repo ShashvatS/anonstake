@@ -1,4 +1,4 @@
-use pairing::bls12_381::{Bls12};
+use pairing::bls12_381::Bls12;
 use crate::circuit::AnonStake;
 use zcash_primitives::jubjub::{JubjubBls12, JubjubEngine};
 use bellman::gadgets::test::TestConstraintSystem;
@@ -14,6 +14,10 @@ pub mod circuit;
 
 use crate::constants::binomial_constants::TauValue;
 
+extern {
+    pub fn nothing();
+}
+
 #[derive(Clone)]
 struct RunConfig<'a> {
     tau: TauValue,
@@ -23,7 +27,7 @@ struct RunConfig<'a> {
     create_params: bool,
     params_out_file: &'a str,
     params_in_file: &'a str,
-    check_params: bool
+    check_params: bool,
 }
 
 
@@ -66,8 +70,11 @@ fn run(config: RunConfig) {
     println!("Time: {}", duration.as_millis());
 }
 
-
 fn main() {
+    unsafe {
+        nothing();
+    }
+
     let config = RunConfig {
         tau: TauValue::Tau1500,
         is_bp: true,
@@ -76,7 +83,7 @@ fn main() {
         create_params: false,
         params_out_file: "./params_tau1500_bp",
         params_in_file: "./params_tau1500_bp",
-        check_params: false
+        check_params: false,
     };
 
     run(config.clone());

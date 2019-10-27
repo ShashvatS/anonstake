@@ -11,3 +11,6 @@ target_link_libraries(fft libfqfft)
 target_link_libraries(fft ff)
 target_link_libraries(fft OpenMP::OpenMP_CXX)
 target_link_libraries(fft ${GMP_LIBRARIES} ${GMPXX_LIBRARIES})
+
+add_executable(testlibfft testlib.cpp)
+target_link_libraries(testlibfft fft)

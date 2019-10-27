@@ -1,26 +1,15 @@
-extern crate cmake;
-
-use cmake::Config;
 use std::process::Command;
+use std::env;
 
 fn main() {
-//    let output = Command::new("ls")
-//        .output()
-//        .expect("failed to execute process");
+    let out_dir = env::var("OUT_DIR").unwrap();
 
     let output = Command::new("python3")
         .arg("build.py")
+        .arg(&out_dir)
         .output()
         .expect("failed to execute process");
 
-    eprintln!("status: {}", output.status);
-    eprintln!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-    eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-
-//    panic!();
-
-//    let dst = Config::new("./../../").build_target("fft").uses_cxx11().build();
-//
-    println!("cargo:rustc-link-search=native={}", "./../../build/libfft");
-    println!("cargo:rustc-link-lib=static=libfft");
+    println!("cargo:rustc-link-search=native={}", out_dir);
+    println!("cargo:rustc-link-lib=static=fft");
 }

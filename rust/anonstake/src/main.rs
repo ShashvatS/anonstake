@@ -1,14 +1,19 @@
 use pairing::bls12_381::Bls12;
 use crate::circuit::AnonStake;
-use zcash_primitives::jubjub::{JubjubBls12};
+use zcash_primitives::jubjub::JubjubBls12;
 use bellman::gadgets::test::TestConstraintSystem;
 use bellman::Circuit;
 use rand::thread_rng;
-use bellman::groth16::{create_random_proof_with_input, generate_random_parameters, prepare_verifying_key, verify_proof, Parameters};
+use bellman::groth16::{create_random_proof_with_input,
+                       precompute_proof,
+                       finish_random_proof,
+                       generate_random_parameters,
+                       prepare_verifying_key,
+                       verify_proof,
+                       Parameters};
 use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
-use ff::PrimeField;
 
 pub mod constants;
 pub mod circuit;
@@ -16,13 +21,12 @@ pub mod config;
 pub mod link;
 
 use config::RunConfig;
+use crate::config::RunMode;
 
 fn run(config: RunConfig) {
     let rng = &mut thread_rng();
     let jubjub = JubjubBls12::new();
     let constants = constants::Constants::<Bls12>::get(&jubjub, config.tau);
-
-    let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1);
 
     if config.test_constraint_system {
         let mut cs = TestConstraintSystem::<Bls12>::new();
@@ -31,7 +35,6 @@ fn run(config: RunConfig) {
 
         println!("{} {}", cs.num_constraints(), cs.num_inputs());
     }
-
     if config.create_params {
         let params = {
             let anonstake = AnonStake::<Bls12>::init_empty(&constants, true, 29);
@@ -50,16 +53,51 @@ fn run(config: RunConfig) {
     };
 
     let start = Instant::now();
-    let (proof, input) = create_random_proof_with_input(anonstake, &params, rng).unwrap();
+    let (proof, input) = match config.mode {
+        RunMode::Single => {
+            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1);
+            create_random_proof_with_input(anonstake, &params, rng).unwrap()
+        },
+        RunMode::SingleBatch => {
+            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1);
 
-    let duration = Instant::now().duration_since(start);
-    println!("Time: {}", duration.as_millis());
+            let proof_kernel = precompute_proof(anonstake.clone(), &params).unwrap();
+            println!("Precomputation Time: {}", start.elapsed().as_millis());
+
+            let start = Instant::now();
+
+            let res = finish_random_proof(anonstake, &params, rng, &proof_kernel).unwrap();
+            println!("Finish Time (same proof): {}", start.elapsed().as_millis());
+            res
+        },
+        RunMode::DoubleBatch => {
+            let mut iter = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1).into_iter();
+
+            let copy = iter.next().unwrap();
+            let proof_kernel = precompute_proof(copy.clone(), &params).unwrap();
+            println!("Precomputation Time: {}", start.elapsed().as_millis());
+
+            let start = Instant::now();
+            let _res = finish_random_proof(copy, &params, rng, &proof_kernel).unwrap();
+            println!("Finish Time (first proof): {}", start.elapsed().as_millis());
+
+            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 2);
+            let start = Instant::now();
+            let res = finish_random_proof(iter.next().unwrap(), &params, rng, &proof_kernel).unwrap();
+            println!("Finish Time (second proof): {}", start.elapsed().as_millis());
+
+            res
+        }
+    };
+
+    println!("Total Time: {}", start.elapsed().as_millis());
 
     // Prepare the verification key (for proof verification)
     let pvk = prepare_verifying_key(&params.vk);
 
     let result = verify_proof(&pvk, &proof, &input[1..]).unwrap();
     println!("verification result: {} (should be true)", result);
+
 }
 
 fn main() {
@@ -68,6 +106,6 @@ fn main() {
         link::init();
     }
 
-    let config = RunConfig::config1();
+    let config = RunConfig::config4();
     run(config.clone());
 }

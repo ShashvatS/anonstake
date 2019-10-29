@@ -1,6 +1,13 @@
 use crate::constants::binomial_constants::TauValue;
 
 #[derive(Clone)]
+pub(crate) enum RunMode {
+    Single,
+    SingleBatch,
+    DoubleBatch
+}
+
+#[derive(Clone)]
 pub(crate) struct RunConfig<'a> {
     pub(crate) tau: TauValue,
     pub(crate) is_bp: bool,
@@ -9,7 +16,8 @@ pub(crate) struct RunConfig<'a> {
     pub(crate) create_params: bool,
     pub(crate) params_out_file: &'a str,
     pub(crate) params_in_file: &'a str,
-    pub(crate)check_params: bool,
+    pub(crate) check_params: bool,
+    pub(crate) mode: RunMode
 }
 
 impl RunConfig<'_> {
@@ -23,6 +31,7 @@ impl RunConfig<'_> {
             params_out_file: "./output/params_tau1500_bp",
             params_in_file: "./output/params_tau1500_bp",
             check_params: false,
+            mode: RunMode::Single
         }
     }
 
@@ -36,6 +45,35 @@ impl RunConfig<'_> {
             params_out_file: "./output/debug_params_tau1500_bp",
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
+            mode: RunMode::Single
+        }
+    }
+
+    pub fn config3() -> RunConfig<'static> {
+        RunConfig {
+            tau: TauValue::Tau1500,
+            is_bp: true,
+            merkle_height: 29,
+            test_constraint_system: true,
+            create_params: false,
+            params_out_file: "./output/debug_params_tau1500_bp",
+            params_in_file: "./output/debug_params_tau1500_bp",
+            check_params: false,
+            mode: RunMode::SingleBatch
+        }
+    }
+
+    pub fn config4() -> RunConfig<'static> {
+        RunConfig {
+            tau: TauValue::Tau1500,
+            is_bp: true,
+            merkle_height: 29,
+            test_constraint_system: true,
+            create_params: false,
+            params_out_file: "./output/debug_params_tau1500_bp",
+            params_in_file: "./output/debug_params_tau1500_bp",
+            check_params: false,
+            mode: RunMode::DoubleBatch
         }
     }
 }

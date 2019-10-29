@@ -11,6 +11,7 @@ use bellman::gadgets::{num, boolean};
 
 pub mod gadgets;
 
+#[derive(Clone)]
 pub struct AnonStake<'a, E: JubjubEngine> {
     pub constants: &'a crate::constants::Constants<'a, E>,
     pub is_bp: bool,
@@ -227,5 +228,34 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         }
 
         Ok(())
+    }
+}
+
+pub struct AnonStakeIterator<'a, E: JubjubEngine> {
+    a: AnonStake<'a, E>
+}
+
+impl<'a, E: JubjubEngine> Iterator for AnonStakeIterator<'a, E> {
+    type Item = AnonStake<'a, E>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let ret = self.a.clone();
+
+        if let Some(j_i) = self.a.aux_input.j_i {
+            self.a.aux_input.j_i = Some(j_i + 1)
+        }
+
+        Some(ret)
+    }
+}
+
+impl<'a, E: JubjubEngine> IntoIterator for AnonStake<'a, E> {
+    type Item = AnonStake<'a, E>;
+    type IntoIter = AnonStakeIterator<'a, E>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        AnonStakeIterator {
+            a: self
+        }
     }
 }

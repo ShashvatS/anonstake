@@ -1,10 +1,10 @@
 use zcash_primitives::jubjub::JubjubEngine;
-use zcash_primitives::pedersen_hash::{pedersen_hash, Personalization};
 use crate::constants::Constants;
 use crate::circuit::AnonStake;
 use rand::{thread_rng, Rng};
-use ff::{Field, PrimeField, PrimeFieldRepr};
+use ff::Field;
 
+#[derive(Clone)]
 pub struct PubInput<E: JubjubEngine> {
     //    pub root_cm: Option<E::Fr>,
 //    pub root_sn: Option<E::Fr>,
@@ -15,6 +15,7 @@ pub struct PubInput<E: JubjubEngine> {
 //    pub h_sig: Option<E::Fr>
 }
 
+#[derive(Clone)]
 pub struct Coin<E: JubjubEngine> {
 //    pub a_pk: Option<E::Fr>,
     pub value: Option<u64>,
@@ -22,6 +23,7 @@ pub struct Coin<E: JubjubEngine> {
     pub s: Option<E::Fs>,
 }
 
+#[derive(Clone)]
 pub struct AuxInput<E: JubjubEngine> {
     pub cm_merkle_path: Vec<Option<(E::Fr, bool)>>,
     pub sn_merkle_path: Vec<Option<(E::Fr, bool)>>,
@@ -32,12 +34,14 @@ pub struct AuxInput<E: JubjubEngine> {
     pub j_i: Option<u64>,
 }
 
+#[derive(Clone)]
 pub struct BlockProposerPubInput {
     pub r: Option<u64>,
 //    pub priority: Option<E::Fr>,
 //    pub seed_comp: Option<E::Fr>
 }
 
+#[derive(Clone)]
 pub struct BlockProposerAuxInput;
 
 

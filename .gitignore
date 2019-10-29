@@ -3,3 +3,4 @@
 /rust/measurefft/target/
 /rust/anonstake/target/
 /build
+/librustzcash/target

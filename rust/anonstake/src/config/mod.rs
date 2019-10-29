@@ -25,5 +25,18 @@ impl RunConfig<'_> {
             check_params: false,
         }
     }
+
+    pub fn config2() -> RunConfig<'static> {
+        RunConfig {
+            tau: TauValue::Tau1500,
+            is_bp: true,
+            merkle_height: 29,
+            test_constraint_system: true,
+            create_params: true,
+            params_out_file: "./output/debug_params_tau1500_bp",
+            params_in_file: "./output/debug_params_tau1500_bp",
+            check_params: false,
+        }
+    }
 }
 

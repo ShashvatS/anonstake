@@ -241,12 +241,12 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             // (cur - rt) * value = 0
             // if value is zero, cur and rt can be different
             // if value is nonzero, they must be equal
-        cs.enforce(
-            || "conditionally enforce correct root",
-            |lc| lc + cur.get_variable() - rt.get_variable(),
-            |lc| lc + CS::one(),
-            |lc| lc,
-        );
+            cs.enforce(
+                || "conditionally enforce correct root",
+                |lc| lc + cur.get_variable() - rt.get_variable(),
+                |lc| lc + CS::one(),
+                |lc| lc,
+            );
 
             // Expose the anchor
             rt.inputize(cs.namespace(|| "sn anchor"))?;
@@ -529,12 +529,15 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     {
         assert_eq!(left_bits.len(), right_bits.len());
 
-        let pi = Boolean::Constant(true);
+        let mut pi = Boolean::Constant(true);
 
         for i in (0..right_bits.len()).rev() {
-            let t = Boolean::and(cs.namespace(|| format!("{}: calc t_i: {}", namespace, i)), &left_bits[i].not(), &right_bits[i])?.not();
-            let pi = Boolean::and(cs.namespace(|| format!("{}: calc pi__i: {}", namespace, i)), &t, &pi)?.not();
-            let d = Boolean::and(cs.namespace(|| format!("{}: calc d_i: {}", namespace, i)), &pi, &left_bits[i])?.not();
+            let t = Boolean::and(cs.namespace(|| format!("{}: calc t_i: {}", namespace, i)),
+                                 &left_bits[i].not(),
+                                 &right_bits[i])?.not();
+
+            pi = Boolean::and(cs.namespace(|| format!("{}: calc pi__i: {}", namespace, i)), &t, &pi)?;
+            let d = Boolean::and(cs.namespace(|| format!("{}: calc d_i: {}", namespace, i)), &pi, &left_bits[i])?;
             cs.enforce(|| format!("{}: constrain to 0: {}", namespace, i),
                        |_| right_bits[i].not().lc(CS::one(), E::Fr::one()),
                        |_| d.lc(CS::one(), E::Fr::one()),

@@ -1,7 +1,3 @@
-use rand::thread_rng;
-use pairing::bls12_381::Bls12;
-use ff::{Field, PrimeField, ScalarEngine};
-
 extern {
     pub fn hello_world();
     pub fn init();
@@ -10,6 +6,10 @@ extern {
 
 #[test]
 pub fn experiment() {
+    use rand::thread_rng;
+    use pairing::bls12_381::Bls12;
+    use ff::{Field, PrimeField, ScalarEngine};
+
     let rng = &mut thread_rng();
     let mut num = <Bls12 as ScalarEngine>::Fr::random(rng);
     let ptr: *mut <Bls12 as ScalarEngine>::Fr = &mut num;

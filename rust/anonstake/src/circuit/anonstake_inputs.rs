@@ -27,8 +27,8 @@ pub struct AuxInput<E: JubjubEngine> {
     pub sn_merkle_path: Vec<Option<(E::Fr, bool)>>,
     pub coin: Coin<E>,
     pub a_sk: Option<E::Fr>,
-    pub sn_less: Option<E::Fr>,
-    pub sn_plus: Option<E::Fr>,
+    pub sn_less_diff: Option<E::Fr>,
+    pub sn_plus_diff: Option<E::Fr>,
     pub j_i: Option<u64>,
 }
 
@@ -72,8 +72,8 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     s: None,
                 },
                 a_sk: None,
-                sn_less: None,
-                sn_plus: None,
+                sn_less_diff: None,
+                sn_plus_diff: None,
                 j_i: None,
             },
             bp_pub_input: BlockProposerPubInput {
@@ -119,8 +119,8 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     s: Some(E::Fs::random(rng)),
                 },
                 a_sk: Some(E::Fr::random(rng)),
-                sn_less: Some(E::Fr::random(rng)),
-                sn_plus: Some(E::Fr::random(rng)),
+                sn_less_diff: Some(E::Fr::random(rng)),
+                sn_plus_diff: Some(E::Fr::random(rng)),
                 j_i: Some(1),
             },
             bp_pub_input: BlockProposerPubInput {
@@ -144,42 +144,6 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             sn_merkle_path.push(Some(val));
         }
 
-        let (rho, a_sk, sn_less, sn_plus) = {
-            let rho: E::Fr = E::Fr::random(rng);
-            let a_sk: E::Fr = E::Fr::random(rng);
-
-            let sn: E::Fr = {
-                let all_bits: Vec<bool> = {
-                    let mut all_bits = vec![];
-                    let mut rho = rho.into_repr();
-                    let mut a_sk = a_sk.into_repr();
-
-                    for _ in 0..E::Fr::NUM_BITS {
-                        all_bits.push(rho.is_odd());
-                        rho.div2();
-                    }
-
-                    for _ in 0..E::Fr::NUM_BITS {
-                        all_bits.push(a_sk.is_odd());
-                        a_sk.div2();
-                    }
-
-                    all_bits
-                };
-
-                let result = pedersen_hash::<E, _>(Personalization::NoteCommitment, all_bits, constants.jubjub);
-                result.to_xy().0
-            };
-
-            let mut sn_less = sn.clone();
-            sn_less.sub_assign(&E::Fr::one());
-            let mut sn_plus = sn.clone();
-            sn_plus.add_assign(&E::Fr::one());
-
-            (Some(rho), Some(a_sk), Some(sn_less), Some(sn_plus))
-        };
-
-
         AnonStake {
             constants: &constants,
             is_bp,
@@ -197,12 +161,12 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 sn_merkle_path,
                 coin: Coin {
                     value: Some(2u64.pow(59)),
-                    rho,
+                    rho: Some(E::Fr::random(rng)),
                     s: Some(E::Fs::random(rng)),
                 },
-                a_sk,
-                sn_less,
-                sn_plus,
+                a_sk: Some(E::Fr::random(rng)),
+                sn_less_diff: Some(E::Fr::one()),
+                sn_plus_diff: Some(E::Fr::one()),
                 j_i: Some(j_i),
             },
             bp_pub_input: BlockProposerPubInput {

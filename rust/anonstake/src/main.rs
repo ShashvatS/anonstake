@@ -4,11 +4,11 @@ use zcash_primitives::jubjub::{JubjubBls12};
 use bellman::gadgets::test::TestConstraintSystem;
 use bellman::Circuit;
 use rand::thread_rng;
-use bellman::groth16::{create_random_proof, generate_random_parameters, prepare_verifying_key, verify_proof, Parameters};
+use bellman::groth16::{create_random_proof_with_input, generate_random_parameters, prepare_verifying_key, verify_proof, Parameters};
 use std::fs::File;
 use std::path::Path;
 use std::time::Instant;
-//use ff::{Field, ScalarEngine};
+use ff::PrimeField;
 
 pub mod constants;
 pub mod circuit;
@@ -50,7 +50,7 @@ fn run(config: RunConfig) {
     };
 
     let start = Instant::now();
-    let proof = create_random_proof(anonstake, &params, rng).unwrap();
+    let (proof, input) = create_random_proof_with_input(anonstake, &params, rng).unwrap();
 
     let duration = Instant::now().duration_since(start);
     println!("Time: {}", duration.as_millis());
@@ -58,9 +58,8 @@ fn run(config: RunConfig) {
     // Prepare the verification key (for proof verification)
     let pvk = prepare_verifying_key(&params.vk);
 
-//    let result = verify_proof(&pvk, &proof, &[]).unwrap();
-//    let result = verify_proof(&pvk, &proof, &[<Bls12 as ScalarEngine>::Fr::random(rng)]).unwrap();
-//    println!("verification result: {} (should be false)", result);
+    let result = verify_proof(&pvk, &proof, &input[1..]).unwrap();
+    println!("verification result: {} (should be true)", result);
 }
 
 fn main() {

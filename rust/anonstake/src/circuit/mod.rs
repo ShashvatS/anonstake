@@ -5,7 +5,7 @@ use ff::{Field, PrimeField};
 pub mod anonstake_inputs;
 
 use anonstake_inputs::*;
-use bellman::gadgets::num::AllocatedNum;
+use bellman::gadgets::num::{AllocatedNum};
 use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::{num, boolean};
 
@@ -80,30 +80,32 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         };
 
         {
-            let values = match num_selections.get_value() {
-                Some(value) => {
-                    let value = value.into_repr().as_ref()[0];
-                    let mut tmp = Vec::with_capacity(11);
+            let num_selection_bits = {
+                let values = match num_selections.get_value() {
+                    Some(value) => {
+                        let value = value.into_repr().as_ref()[0];
+                        let mut tmp = Vec::with_capacity(11);
 
-                    for i in 0..11 {
-                        tmp.push(Some(value >> i & 1 == 1));
+                        for i in 0..11 {
+                            tmp.push(Some(value >> i & 1 == 1));
+                        }
+
+                        tmp
                     }
+                    None => vec![None; 11],
+                };
 
-                    tmp
-                }
-                None => vec![None; 11],
+                values
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, b)| {
+                        Ok(Boolean::from(AllocatedBit::alloc(
+                            cs.namespace(|| format!("num_selection bit {}", i)),
+                            b,
+                        )?))
+                    })
+                    .collect::<Result<Vec<_>, SynthesisError>>()?
             };
-
-            let num_selection_bits = values
-                .into_iter()
-                .enumerate()
-                .map(|(i, b)| {
-                    Ok(Boolean::from(AllocatedBit::alloc(
-                        cs.namespace(|| format!("num_selection bit {}", i)),
-                        b,
-                    )?))
-                })
-                .collect::<Result<Vec<_>, SynthesisError>>()?;
 
             let mut num = num::Num::zero();
             let mut coeff = E::Fr::one();
@@ -117,45 +119,45 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
                        |lc| lc + CS::one(),
                        |_| num.lc(E::Fr::one()));
 
+
             self.leq_not_fixed(cs.namespace(|| "j_i less than"), "j_i less than", &j_i_bits, &num_selection_bits)?;
         }
 
         {
             let sn = self.mimc_prf(cs.namespace(|| "calc serial number"), "calc serial number", a_sk.clone(), rho.clone(), &self.constants.mimc.prf_sn)?;
 
-            let sn_less = AllocatedNum::<E>::alloc(cs.namespace(|| "allocate sn_less"), || {
-                self.aux_input.sn_less.ok_or(SynthesisError::AssignmentMissing)
+            let sn_less_diff = AllocatedNum::<E>::alloc(cs.namespace(|| "allocate sn_less"), || {
+                self.aux_input.sn_less_diff.ok_or(SynthesisError::AssignmentMissing)
             })?;
 
-            let sn_plus = AllocatedNum::<E>::alloc(cs.namespace(|| "allocate sn_plus"), || {
-                self.aux_input.sn_plus.ok_or(SynthesisError::AssignmentMissing)
+            let sn_plus_diff = AllocatedNum::<E>::alloc(cs.namespace(|| "allocate sn_plus"), || {
+                self.aux_input.sn_plus_diff.ok_or(SynthesisError::AssignmentMissing)
+            })?;
+
+            sn_less_diff.assert_nonzero(cs.namespace(|| "assert sn_less_sub nonzero"))?;
+            sn_plus_diff.assert_nonzero(cs.namespace(|| "assert sn_plus_sub nonzero"))?;
+
+            //could avoid allocating new numbers but this is so much easier to program
+            let sn_less = AllocatedNum::alloc(cs.namespace(|| "assert sn_less_none_zero"), || {
+                let mut tmp = sn.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                tmp.sub_assign(&sn_less_diff.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(tmp)
+            })?;
+
+            let sn_plus = AllocatedNum::alloc(cs.namespace(|| "assert sn_plus_none_zero"), || {
+                let mut tmp = sn.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                tmp.add_assign(&sn_plus_diff.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(tmp)
             })?;
 
             let sn_bits = sn.to_bits_le_strict(cs.namespace(|| "sn bits"))?;
             let sn_less_bits = sn_less.to_bits_le_strict(cs.namespace(|| "sn_less bits"))?;
             let sn_plus_bits = sn_plus.to_bits_le_strict(cs.namespace(|| "sn_plus bits"))?;
 
-
             self.leq_not_fixed(cs.namespace(|| "compare sn sn_less"), "compare sn sn_less", &sn_less_bits, &sn_bits)?;
+
             self.leq_not_fixed(cs.namespace(|| "compare sn sn_plus"), "compare sn sn_plus", &sn_bits, &sn_plus_bits)?;
-
-
-            //could avoid allocating new numbers but this is so much easier to program
-            let sn_less_nonzero = AllocatedNum::alloc(cs.namespace(|| "assert sn_less_none_zero"), || {
-                let mut tmp = sn.get_value().ok_or(SynthesisError::AssignmentMissing)?;
-                tmp.sub_assign(&sn_less.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-                Ok(tmp)
-            })?;
-
-            let sn_plus_nonzero = AllocatedNum::alloc(cs.namespace(|| "assert sn_plus_none_zero"), || {
-                let mut tmp = sn.get_value().ok_or(SynthesisError::AssignmentMissing)?;
-                tmp.sub_assign(&sn_plus.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-                Ok(tmp)
-            })?;
-
-            sn_less_nonzero.assert_nonzero(cs.namespace(|| "assert sn_less_sub nonzero"))?;
-            sn_plus_nonzero.assert_nonzero(cs.namespace(|| "assert sn_plus_sub nonzero"))?;
-
+            
             let mut all_bits = sn_less_bits;
             all_bits.extend(sn_plus_bits);
 

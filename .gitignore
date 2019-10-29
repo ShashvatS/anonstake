@@ -2,5 +2,5 @@
 /cmake-build-release/
 /rust/measurefft/target/
 /rust/anonstake/target/
-/build
-/librustzcash/target
+/build/
+/librustzcash/target/

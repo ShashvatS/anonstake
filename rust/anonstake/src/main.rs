@@ -15,7 +15,7 @@ pub mod circuit;
 pub mod config;
 pub mod link;
 
-use crate::config::RunConfig;
+use config::RunConfig;
 
 fn run(config: RunConfig) {
     let rng = &mut thread_rng();

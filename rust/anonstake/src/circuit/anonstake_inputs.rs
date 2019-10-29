@@ -27,6 +27,7 @@ pub struct Coin<E: JubjubEngine> {
 pub struct AuxInput<E: JubjubEngine> {
     pub cm_merkle_path: Vec<Option<(E::Fr, bool)>>,
     pub sn_merkle_path: Vec<Option<(E::Fr, bool)>>,
+    pub cm_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
     pub coin: Coin<E>,
     pub a_sk: Option<E::Fr>,
     pub sn_less_diff: Option<E::Fr>,
@@ -54,6 +55,11 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             sn_merkle_path.push(None);
         }
 
+        let mut cm_poseidon_path = vec![];
+        for _ in 0..10 {
+            cm_poseidon_path.push(None);
+        }
+
         AnonStake {
             constants: &constants,
             is_bp,
@@ -69,6 +75,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             aux_input: AuxInput {
                 cm_merkle_path,
                 sn_merkle_path,
+                cm_poseidon_path,
                 coin: Coin {
 //                    a_pk: None,
                     value: None,
@@ -101,6 +108,15 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             sn_merkle_path.push(Some(val));
         }
 
+        let mut cm_poseidon_path = vec![];
+        for _ in 0..10 {
+            let mut t: u8 = rng.gen();
+            t %= 8;
+
+            let a = [E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng)];
+            cm_poseidon_path.push(Some((a, t)));
+        }
+
         AnonStake {
             constants: &constants,
             is_bp,
@@ -116,6 +132,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             aux_input: AuxInput {
                 cm_merkle_path,
                 sn_merkle_path,
+                cm_poseidon_path,
                 coin: Coin {
 //                    a_pk: Some(E::Fr::random(rng)),
                     value: Some(2u64.pow(59)),
@@ -148,6 +165,15 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             sn_merkle_path.push(Some(val));
         }
 
+        let mut cm_poseidon_path = vec![];
+        for _ in 0..10 {
+            let mut t: u8 = rng.gen();
+            t %= 8;
+
+            let a = [E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng)];
+            cm_poseidon_path.push(Some((a, t)));
+        }
+
         AnonStake {
             constants: &constants,
             is_bp,
@@ -163,6 +189,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             aux_input: AuxInput {
                 cm_merkle_path,
                 sn_merkle_path,
+                cm_poseidon_path,
                 coin: Coin {
                     value: Some(2u64.pow(59)),
                     rho: Some(E::Fr::random(rng)),

@@ -8,7 +8,7 @@ if __name__ == "__main__":
         tmp = tmp[:-2]
         format_string = format_string.format(tmp)
 
-    with open("constants.txt", "r") as f:
+    with open("input/constants.txt", "r") as f:
         i = 0
         for line in f:
             constant = int(line, 0)
@@ -18,7 +18,7 @@ if __name__ == "__main__":
             constants.append(template.format(constant))
             i += 1
 
-    with open("mimc_constants.txt", "w") as f:
+    with open("output/mimc_constants.txt", "w") as f:
         i = 0
         while i < len(constants):
             line = "let x{} = ".format(i // 162) + format_string.format(*constants[i:i + 162]) + ";\n"

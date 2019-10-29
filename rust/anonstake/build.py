@@ -4,7 +4,7 @@ import sys
 import shutil
 import datetime
 
-sys.stdout = open("python_build_log.txt", 'w')
+sys.stdout = open("output/python_build_log.txt", 'w')
 
 os.chdir(os.path.join(os.getcwd(), "..", "..", "build"))
 subprocess.call(["cmake", ".."])

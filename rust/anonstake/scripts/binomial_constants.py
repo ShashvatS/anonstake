@@ -54,13 +54,10 @@ def run1(prob, file):
 
     values = [(x[0], int(x[1] * (mpf(2) ** 80))) for x in values]
 
-
 def into_field(val):
     template = "E::Fr::from_str(\"{}\").expect(\"failure generating constants\")"
     val = str(int(val * (mpf(2) ** 80)))
     return template.format(val)
-
-
 
 def run2(prob, file):
     for i in range(0, 60):
@@ -95,30 +92,31 @@ def run2(prob, file):
 
     values = [(x[0], int(x[1] * (mpf(2) ** 80))) for x in values]
 
-
-
-if __name__ == "__main__":
-    tau_vals = [1500, 2000, 2990, 5000]
-    # for tau in tau_vals:
-    #     file = open("binomial_constants_1_{}.txt".format(tau), "w")
-    #     prob = mpf(tau) / numcoins
-    #     run1(prob, file)
-    #     file.close()
-
-    # for tau in tau_vals:
-    #     file = open("binomial_constants_2_{}.txt".format(tau), "w")
-    #     prob = mpf(tau) / numcoins
-    #     run2(prob, file)
-    #     file.close()
-
-    #was a mistake in the formatting; fixing it by properly writing to a different file
+def runAll(tau_vals):
     for tau in tau_vals:
-        out = open("binomial_constants_3_{}.txt".format(tau), "w")
-        with open("binomial_constants_2_{}.txt".format(tau), "r") as f:
+        file = open("output/binomial_constants_1_{}.txt".format(tau), "w")
+        prob = mpf(tau) / numcoins
+        run1(prob, file)
+        file.close()
+
+    for tau in tau_vals:
+        file = open("output/binomial_constants_2_{}.txt".format(tau), "w")
+        prob = mpf(tau) / numcoins
+        run2(prob, file)
+        file.close()
+
+    # was a mistake in the formatting; fixing it by properly writing to a different file
+    for tau in tau_vals:
+        out = open("output/binomial_constants_3_{}.txt".format(tau), "w")
+        with open("output/binomial_constants_2_{}.txt".format(tau), "r") as f:
             for line in f:
                 line = line.replace(".push(", "=")
                 line = line.replace(");", ";")
                 out.write(line)
+
+if __name__ == "__main__":
+    runAll([1500, 2000, 2990, 5000])
+
 
 
 

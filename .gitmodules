@@ -6,7 +6,7 @@
 	url = https://github.com/scipr-lab/libff.git
 [submodule "librustzcash"]
 	path = librustzcash
-	url = https://github.com/zcash/librustzcash.git
+	url = git@github.com:ShashvatS/librustzcash.git
 [submodule "bellman"]
 	path = bellman
 	url = https://github.com/zkcrypto/bellman.git

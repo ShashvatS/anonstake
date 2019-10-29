@@ -20,8 +20,8 @@ impl RunConfig<'_> {
             merkle_height: 29,
             test_constraint_system: true,
             create_params: false,
-            params_out_file: "./params_tau1500_bp",
-            params_in_file: "./params_tau1500_bp",
+            params_out_file: "./output/params_tau1500_bp",
+            params_in_file: "./output/params_tau1500_bp",
             check_params: false,
         }
     }

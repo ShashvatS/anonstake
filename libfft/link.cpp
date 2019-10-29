@@ -13,6 +13,12 @@ extern "C" {
         initFieldR();
         checkFieldR();
     }
+
+    void check_value(uint8_t * ptr) {
+        FieldR a = *(FieldR*)ptr;
+        a.print();
+        std::cout << std::endl;
+    }
 }
 
 

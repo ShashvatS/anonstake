@@ -334,6 +334,7 @@ pub fn serial_number_nonmembership<CS>(&self, mut cs: CS, namespace: &str, sn_bo
 
         for i in 0..8 {
             cur_path_num[i] = cur_path_num[i].clone() + minus_cur.clone();
+            cur_path_num[i].simplify();
         }
 
         let mut var = AllocatedNum::alloc(

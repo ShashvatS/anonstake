@@ -105,6 +105,6 @@ fn main() {
         link::init();
     }
 
-    let config = RunConfig::config2();
+    let config = RunConfig::config1();
     run(config.clone());
 }

@@ -4,11 +4,13 @@ use crate::constants::mimc_constants::MiMCConstants;
 
 pub mod mimc_constants;
 pub mod binomial_constants;
+pub mod poseidon_constants;
 
 pub struct Constants<'a, E: JubjubEngine>{
     pub mimc: mimc_constants::MiMCConstants<E>,
     pub(crate) jubjub: &'a E::Params,
     pub binomial: binomial_constants::BinomialConstants<E>,
+    pub poseidon: poseidon_constants::PoseidonConstants<E>,
     /* maximum value is actually 2**max_value - 1 */
     pub max_value: usize,
     pub precision: usize
@@ -20,6 +22,7 @@ impl<'a, E: ScalarEngine + JubjubEngine> Constants<'_, E> {
             mimc: MiMCConstants::get(),
             jubjub: jubjub,
             binomial: tau_value.new(),
+            poseidon: poseidon_constants::PoseidonConstants::<E>::get(),
             max_value: 60,
             precision: 80
         }

@@ -81,7 +81,6 @@ fn run(config: RunConfig) {
             let _res = finish_random_proof(copy, &params, rng, &proof_kernel).unwrap();
             println!("Finish Time (first proof): {}", start.elapsed().as_millis());
 
-            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 2);
             let start = Instant::now();
             let res = finish_random_proof(iter.next().unwrap(), &params, rng, &proof_kernel).unwrap();
             println!("Finish Time (second proof): {}", start.elapsed().as_millis());
@@ -106,6 +105,6 @@ fn main() {
         link::init();
     }
 
-    let config = RunConfig::config4();
+    let config = RunConfig::config2();
     run(config.clone());
 }

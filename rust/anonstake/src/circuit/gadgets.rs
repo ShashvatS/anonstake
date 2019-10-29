@@ -13,6 +13,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     pub fn poseidon_sbox<CS>(&self, mut cs: CS, namespace: &str, num: &Num<E>) -> Result<AllocatedNum<E>, SynthesisError>
         where CS: ConstraintSystem<E>
     {
+        //println!("poseidon sbox start");
         let square = AllocatedNum::alloc(
             cs.namespace(|| format!("{}: square", namespace)), || {
                 let mut tmp = num.get_value().ok_or(SynthesisError::AssignmentMissing)?;
@@ -21,12 +22,16 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             },
         )?;
 
+        //println!("poseidon sbox square");
+
         cs.enforce(|| format!("{}: enforce square", namespace),
                    |_| num.lc(E::Fr::one()),
                    |_| num.lc(E::Fr::one()),
                    |lc| lc + square.get_variable());
 
         let square_square = square.square(cs.namespace(|| format!("{}: square square", namespace)))?;
+
+        //println!("poseidon sbox square square");
 
         let ans = AllocatedNum::alloc(
             cs.namespace(|| format!("{}: final", namespace)), || {
@@ -41,12 +46,14 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                    |lc| lc + square_square.get_variable(),
                    |lc| lc + ans.get_variable());
 
+        //println!("poseidon sbox end");
         Ok(ans)
     }
 
     pub fn poseidon_round<CS>(&self, mut cs: CS, namespace: &str, mut input: [Num<E>; 9], round: usize) -> Result<[Num<E>; 9], SynthesisError>
         where CS: ConstraintSystem<E>
     {
+        //println!("poseidon round");
 
         if round < self.constants.poseidon.R_F / 2 || round >= self.constants.poseidon.R_P + self.constants.poseidon.R_F / 2 {
             for i in 0..9 {
@@ -174,72 +181,98 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok((cm, value_num, value_bits, rho_alloc))
     }
 
-    //copied directly from zcash
     pub fn coin_commitment_membership<CS>(&self, mut cs: CS, namespace: &str, cm: EdwardsPoint<E>) -> Result<(), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         // This is an injective encoding, as cur is a
         // point in the prime order subgroup.
-        let mut cur = cm.get_x().clone();
+        let cur = cm.get_x().clone();
+        let mut cur = Num::from(cur);
 
         // Ascend the merkle tree authentication path
-        for (i, e) in self.aux_input.cm_merkle_path.as_slice().iter().enumerate() {
-//        for (i, e) in self.aux_input.cm_merkle_path.clone().into_iter().enumerate() {
-            let cs = &mut cs.namespace(|| namespace.to_owned() + format!("merkle tree hash {}", i).as_ref());
+        for (i, e) in self.aux_input.cm_poseidon_path.as_slice().iter().enumerate() {
+            let mut cur_path_num = {
+                let mut cur_path: Vec<AllocatedNum<E>> = vec![];
+                for j in 0..8 {
+                    let str = format!("{}: merkle tree hash height {} alloc i {}", namespace, i, j);
+                    let num = AllocatedNum::alloc(cs.namespace(|| str), || {
+                        let t = e.ok_or(SynthesisError::AssignmentMissing)?;
+                        if t.1 == j {
+                            return cur.get_value().ok_or(SynthesisError::AssignmentMissing);
+                        }
+                        else {
+                            return Ok(t.0[j as usize]);
+                        }
+                    })?;
 
-            // Determines if the current subtree is the "right" leaf at this
-            // depth of the tree.
-            let cur_is_right = boolean::Boolean::from(boolean::AllocatedBit::alloc(
-                cs.namespace(|| "position bit"),
-                e.map(|e| e.1),
-            )?);
+                    cur_path.push(num);
+                }
 
-            // Push this boolean for nullifier computation later
+                let mut cur_path_num = vec![];
+                for num in cur_path {
+                    cur_path_num.push(Num::from(num));
+                }
 
-            //not sure what this is for, apperently used to calculated the nullifier?
-            //nullifier is the serial number, it seems that this bit is used to modify the serial number...
-            //for some sort of attack not covered by Zerocash paper?
-            //will not use in self bc research codez
-            //position_bits.push(cur_is_right.clone());
+                cur_path_num
+            };
 
-            // Witness the authentication path element adjacent
-            // at this depth.
-            let path_element =
-                num::AllocatedNum::alloc(cs.namespace(|| "path element"), || Ok(e.get()?.0))?;
+            let t = [cur_path_num[0].clone(), cur_path_num[1].clone(), cur_path_num[2].clone(), cur_path_num[3].clone(), cur_path_num[4].clone(), cur_path_num[5].clone(), cur_path_num[6].clone(), cur_path_num[7].clone()];
+            let next_cur = self.poseidon(cs.namespace(|| namespace.to_owned() + format!("merkle tree hash {}", i).as_ref()), (namespace.to_owned() + format!("merkle tree hash {}", i).as_ref()).as_ref(), t)?;
+//            let next_cur = t[0].clone();
 
-            // Swap the two if the current subtree is on the right
-            let (xl, xr) = num::AllocatedNum::conditionally_reverse(
-                cs.namespace(|| "conditional reversal of preimage"),
-                &cur,
-                &path_element,
-                &cur_is_right,
+            let mut minus_one = E::Fr::one();
+            minus_one.negate();
+            let minus_cur = cur.multiply(minus_one);
+
+            for i in 0..8 {
+                cur_path_num[i] = cur_path_num[i].clone() + minus_cur.clone();
+                cur_path_num[i].simplify();
+            }
+
+            let mut var = AllocatedNum::alloc(
+                cs.namespace(|| format!("{}: {} {} constrain 0", namespace, i, 1)),
+                || {
+                    let mut tmp = cur_path_num[0].get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                    tmp.mul_assign(&cur_path_num[1].get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    Ok(tmp)
+                }
             )?;
 
-            // We don't need to be strict, because the function is
-            // collision-resistant. If the prover witnesses a congruency,
-            // they will be unable to find an authentication path in the
-            // tree with high probability.
-            let mut preimage = vec![];
-            preimage.extend(xl.to_bits_le(cs.namespace(|| "xl into bits"))?);
-            preimage.extend(xr.to_bits_le(cs.namespace(|| "xr into bits"))?);
+            cs.enforce(|| format!("{}: {} {} constrain constraint 0", namespace, i, 1),
+            |_| cur_path_num[0].lc(E::Fr::one()),
+            |_| cur_path_num[1].lc(E::Fr::one()),
+            |lc| lc + var.get_variable());
 
-            // Compute the new subtree value
-            cur = pedersen_hash(
-                cs.namespace(|| "comthe original Zerocash paper even though we are creating a zero-knowledge proof for a muchmore complex statement.In the future, we would like to create an implementation of our scheme. However, this iscurrently impossible. We extensively use the MiMC block cipher in our scheme. Because ofits design, MiMC can only be used in a prime fieldFpwheregcd(3,p−1) = 1. Unfortunately,neither the libsnark library nor the bellman library for constructing zk-SNARKs have suitablefields.  MiMC  also  needs  to  be  more  thoroughly  analyzed.  Currently,  the  only  publishedcryptoanalysis on MiMC was done by the authors themselves.6    Ackputation of pedersen hash"),
-                Personalization::MerkleTree(i),
-                &preimage,
-                self.constants.jubjub,
-            )?
-                .get_x()
-                .clone(); // Injective encoding
+            for j in 2..8 {
+                let new_var = AllocatedNum::alloc(
+                    cs.namespace(|| format!("{}: {} {} constrain 0", namespace, i, j)),
+                    || {
+                        let mut tmp = var.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                        tmp.mul_assign(&cur_path_num[j].get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                        Ok(tmp)
+                    }
+                )?;
+
+                cs.enforce(|| format!("{}: {} {} constrain constraint 0", namespace, i, j),
+                           |_| cur_path_num[j].lc(E::Fr::one()),
+                           |lc| lc + var.get_variable(),
+                           |lc| lc + new_var.get_variable());
+
+                var = new_var;
+            }
+
+            cs.enforce(|| format!("{}: {} {} constrain constraint sksk 0", namespace, i, 1),
+            |lc| lc + var.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc);
+
+            cur = next_cur;
         }
 
         {
-//            let real_anchor_value = self.pub_input.root_cm;
-
             //slightly lazy, allocating an extra variable, whatever
 
-            // Allocate the "real" anchor that will be exposed.
+            //Allocate the "real" anchor that will be exposed.
             let rt = num::AllocatedNum::alloc(cs.namespace(|| "conditional anchor"), || {
                 cur.get_value().ok_or(SynthesisError::AssignmentMissing)
             })?;
@@ -249,7 +282,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             // if value is nonzero, they must be equal
             cs.enforce(
                 || "conditionally enforce correct root",
-                |lc| lc + cur.get_variable() - rt.get_variable(),
+                |_| cur.lc(E::Fr::one()) - rt.get_variable(),
                 |lc| lc + CS::one(),
                 |lc| lc,
             );
@@ -257,92 +290,117 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             // Expose the anchor
             rt.inputize(cs.namespace(|| "anchor"))?;
 
-            Ok(())
         }
+
+        Ok(())
     }
 
-    //modified from above
-    pub fn serial_number_nonmembership<CS>(&self, mut cs: CS, namespace: &str, sn_box: AllocatedNum<E>) -> Result<(), SynthesisError>
-        where CS: ConstraintSystem<E>
-    {
-        // This is an injective encoding, as cur is a
-        // point in the prime order subgroup.
-        let mut cur = sn_box;
+//modified from above
+pub fn serial_number_nonmembership<CS>(&self, mut cs: CS, namespace: &str, sn_box: AllocatedNum<E>) -> Result<(), SynthesisError>
+    where CS: ConstraintSystem<E>
+{
+    let cur = sn_box;
+    let mut cur = Num::from(cur);
 
-        // Ascend the merkle tree authentication path
-        for (i, e) in self.aux_input.sn_merkle_path.as_slice().iter().enumerate() {
-//        for (i, e) in self.aux_input.cm_merkle_path.clone().into_iter().enumerate() {
-            let cs = &mut cs.namespace(|| namespace.to_owned() + format!("merkle tree hash {}", i).as_ref());
-
-            // Determines if the current subtree is the "right" leaf at this
-            // depth of the tree.
-            let cur_is_right = boolean::Boolean::from(boolean::AllocatedBit::alloc(
-                cs.namespace(|| "position bit"),
-                e.map(|e| e.1),
-            )?);
-
-            // Push this boolean for nullifier computation later
-
-            //not sure what this is for, apperently used to calculated the nullifier?
-            //nullifier is the serial number, it seems that this bit is used to modify the serial number...
-            //for some sort of attack not covered by Zerocash paper?
-            //will not use in self bc research codez
-            //position_bits.push(cur_is_right.clone());
-
-            // Witness the authentication path element adjacent
-            // at this depth.
-            let path_element =
-                num::AllocatedNum::alloc(cs.namespace(|| "path element"), || Ok(e.get()?.0))?;
-
-            // Swap the two if the current subtree is on the right
-            let (xl, xr) = num::AllocatedNum::conditionally_reverse(
-                cs.namespace(|| "conditional reversal of preimage"),
-                &cur,
-                &path_element,
-                &cur_is_right,
-            )?;
-
-            // We don't need to be strict, because the function is
-            // collision-resistant. If the prover witnesses a congruency,
-            // they will be unable to find an authentication path in the
-            // tree with high probability.
-            let mut preimage = vec![];
-            preimage.extend(xl.to_bits_le(cs.namespace(|| "xl into bits"))?);
-            preimage.extend(xr.to_bits_le(cs.namespace(|| "xr into bits"))?);
-
-            // Compute the new subtree value
-            cur = pedersen_hash(
-                cs.namespace(|| "comthe original Zerocash paper even though we are creating a zero-knowledge proof for a muchmore complex statement.In the future, we would like to create an implementation of our scheme. However, this iscurrently impossible. We extensively use the MiMC block cipher in our scheme. Because ofits design, MiMC can only be used in a prime fieldFpwheregcd(3,p−1) = 1. Unfortunately,neither the libsnark library nor the bellman library for constructing zk-SNARKs have suitablefields.  MiMC  also  needs  to  be  more  thoroughly  analyzed.  Currently,  the  only  publishedcryptoanalysis on MiMC was done by the authors themselves.6    Ackputation of pedersen hash"),
-                Personalization::MerkleTree(i),
-                &preimage,
-                self.constants.jubjub,
-            )?
-                .get_x()
-                .clone(); // Injective encoding
-        }
-
-        {
-            // Allocate the "real" anchor that will be exposed.
-            let rt = num::AllocatedNum::alloc(cs.namespace(|| "sn conditional anchor"), || {
-                cur.get_value().ok_or(SynthesisError::AssignmentMissing)
+    // Ascend the merkle tree authentication path
+    for (i, e) in self.aux_input.sn_poseidon_path.as_slice().iter().enumerate() {
+        let mut cur_path: Vec<AllocatedNum<E>> = vec![];
+        for j in 0..8 {
+            let str = format!("{}: merkle tree hash height {} alloc i {}", namespace, i, j);
+            let num = AllocatedNum::alloc(cs.namespace(|| str), || {
+                let t = e.ok_or(SynthesisError::AssignmentMissing)?;
+                if t.1 == j {
+                    return cur.get_value().ok_or(SynthesisError::AssignmentMissing);
+                }
+                else {
+                    return Ok(t.0[j as usize]);
+                }
             })?;
 
-            // (cur - rt) * value = 0
-            // if value is zero, cur and rt can be different
-            // if value is nonzero, they must be equal
-            cs.enforce(
-                || "conditionally enforce correct root",
-                |lc| lc + cur.get_variable() - rt.get_variable(),
-                |lc| lc + CS::one(),
-                |lc| lc,
-            );
-
-            // Expose the anchor
-            rt.inputize(cs.namespace(|| "sn anchor"))?;
-
-            Ok(())
+            cur_path.push(num);
         }
+
+        let mut cur_path_num = vec![];
+        for num in cur_path {
+            cur_path_num.push(Num::from(num));
+        }
+
+        let t = [cur_path_num[0].clone(), cur_path_num[1].clone(), cur_path_num[2].clone(), cur_path_num[3].clone(), cur_path_num[4].clone(), cur_path_num[5].clone(), cur_path_num[6].clone(), cur_path_num[7].clone()];
+
+        let next_cur = self.poseidon(cs.namespace(|| namespace.to_owned() + format!("merkle tree hash {}", i).as_ref()), (namespace.to_owned() + format!("merkle tree hash {}", i).as_ref()).as_ref(), t)?;
+
+        let mut minus_one = E::Fr::one();
+        minus_one.negate();
+        let minus_cur = cur.multiply(minus_one);
+
+        for i in 0..8 {
+            cur_path_num[i] = cur_path_num[i].clone() + minus_cur.clone();
+        }
+
+        let mut var = AllocatedNum::alloc(
+            cs.namespace(|| format!("{}: {} {} constrain 0", namespace, i, 1)),
+            || {
+                let mut tmp = cur_path_num[0].get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                tmp.mul_assign(&cur_path_num[1].get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(tmp)
+            }
+        )?;
+
+        cs.enforce(|| format!("{}: {} {} constrain constraint 0", namespace, i, 1),
+                   |_| cur_path_num[0].lc(E::Fr::one()),
+                   |_| cur_path_num[1].lc(E::Fr::one()),
+                   |lc| lc + var.get_variable());
+
+        for j in 2..8 {
+            let new_var = AllocatedNum::alloc(
+                cs.namespace(|| format!("{}: {} {} constrain 0", namespace, i, j)),
+                || {
+                    let mut tmp = var.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                    tmp.mul_assign(&cur_path_num[j].get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                    Ok(tmp)
+                }
+            )?;
+
+            cs.enforce(|| format!("{}: {} {} constrain constraint 0", namespace, i, j),
+                       |_| cur_path_num[j].lc(E::Fr::one()),
+                       |lc| lc + var.get_variable(),
+                       |lc| lc + new_var.get_variable());
+
+            var = new_var;
+        }
+
+        cs.enforce(|| format!("{}: {} {} constrain constraint sksk 0", namespace, i, 1),
+                   |lc| lc + var.get_variable(),
+                   |lc| lc + CS::one(),
+                   |lc| lc);
+
+        cur = next_cur;
     }
+
+    {
+        // Allocate the "real" anchor that will be exposed.
+        let rt = num::AllocatedNum::alloc(cs.namespace(|| "sn conditional anchor"), || {
+            cur.get_value().ok_or(SynthesisError::AssignmentMissing)
+        })?;
+
+        // (cur - rt) * value = 0
+        // if value is zero, cur and rt can be different
+        // if value is nonzero, they must be equal
+        cs.enforce(
+            || "conditionally enforce correct root",
+            |_| cur.lc(E::Fr::one()) - rt.get_variable(),
+            |lc| lc + CS::one(),
+            |lc| lc,
+        );
+
+        // Expose the anchor
+        rt.inputize(cs.namespace(|| "sn anchor"))?;
+
+    }
+
+    Ok(())
+}
+
 
     //input: already allocated
     //sk: already allocated
@@ -1040,7 +1098,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             };
 
             let calc_constraints_regular = 163 * num_binom_values;
-            //println!("{}", log_num_values);
+            ////println!("{}", log_num_values);
             let calc_constraints_advanced = (2 << log_num_values) + 403 * log_num_values - 241;
 
             let num =

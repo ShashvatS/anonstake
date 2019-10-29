@@ -25,7 +25,7 @@ impl RunConfig<'_> {
         RunConfig {
             tau: TauValue::Tau1500,
             is_bp: true,
-            merkle_height: 29,
+            merkle_height: 10,
             test_constraint_system: true,
             create_params: false,
             params_out_file: "./output/params_tau1500_bp",
@@ -39,7 +39,7 @@ impl RunConfig<'_> {
         RunConfig {
             tau: TauValue::Tau1500,
             is_bp: true,
-            merkle_height: 29,
+            merkle_height: 10,
             test_constraint_system: true,
             create_params: true,
             params_out_file: "./output/debug_params_tau1500_bp",
@@ -53,7 +53,7 @@ impl RunConfig<'_> {
         RunConfig {
             tau: TauValue::Tau1500,
             is_bp: true,
-            merkle_height: 29,
+            merkle_height: 10,
             test_constraint_system: true,
             create_params: false,
             params_out_file: "./output/debug_params_tau1500_bp",
@@ -67,7 +67,7 @@ impl RunConfig<'_> {
         RunConfig {
             tau: TauValue::Tau1500,
             is_bp: true,
-            merkle_height: 29,
+            merkle_height: 10,
             test_constraint_system: true,
             create_params: false,
             params_out_file: "./output/debug_params_tau1500_bp",

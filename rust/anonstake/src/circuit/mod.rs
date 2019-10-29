@@ -157,7 +157,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
             self.leq_not_fixed(cs.namespace(|| "compare sn sn_less"), "compare sn sn_less", &sn_less_bits, &sn_bits)?;
 
             self.leq_not_fixed(cs.namespace(|| "compare sn sn_plus"), "compare sn sn_plus", &sn_bits, &sn_plus_bits)?;
-            
+
             let mut all_bits = sn_less_bits;
             all_bits.extend(sn_plus_bits);
 

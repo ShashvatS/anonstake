@@ -98,7 +98,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
 
         Ok(state[0].clone())
     }
-    
+
     pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, Vec<Boolean>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E>
     {

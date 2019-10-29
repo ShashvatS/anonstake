@@ -33,3 +33,9 @@ path = "src/main.rs"
 [[bin]]
 name = "print_random_constants"
 path = "src/generate_random_constants.rs"
+
+
+[[test]]
+name = "e1"
+path = "src/experiments/e1.rs"
+

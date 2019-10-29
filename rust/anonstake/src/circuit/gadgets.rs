@@ -218,7 +218,6 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
 
             let t = [cur_path_num[0].clone(), cur_path_num[1].clone(), cur_path_num[2].clone(), cur_path_num[3].clone(), cur_path_num[4].clone(), cur_path_num[5].clone(), cur_path_num[6].clone(), cur_path_num[7].clone()];
             let next_cur = self.poseidon(cs.namespace(|| namespace.to_owned() + format!("merkle tree hash {}", i).as_ref()), (namespace.to_owned() + format!("merkle tree hash {}", i).as_ref()).as_ref(), t)?;
-//            let next_cur = t[0].clone();
 
             let mut minus_one = E::Fr::one();
             minus_one.negate();

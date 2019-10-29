@@ -30,14 +30,14 @@ fn run(config: RunConfig) {
 
     if config.test_constraint_system {
         let mut cs = TestConstraintSystem::<Bls12>::new();
-        let anonstake = AnonStake::<Bls12>::init_pure_random(&constants, true, 29);
+        let anonstake = AnonStake::<Bls12>::init_pure_random(&constants, true, config.merkle_height);
         anonstake.synthesize(&mut cs).unwrap();
 
         println!("{} {}", cs.num_constraints(), cs.num_inputs());
     }
     if config.create_params {
         let params = {
-            let anonstake = AnonStake::<Bls12>::init_empty(&constants, true, 29);
+            let anonstake = AnonStake::<Bls12>::init_empty(&constants, true, config.merkle_height);
             generate_random_parameters(anonstake, rng).unwrap()
         };
 

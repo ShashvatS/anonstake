@@ -3,12 +3,11 @@ use ff::{Field, PrimeField, ScalarEngine};
 pub struct PoseidonConstants<E: ScalarEngine> {
     pub mds: [[<E as ScalarEngine>::Fr; 9]; 9],
     pub rounds: [[<E as ScalarEngine>::Fr; 9]; 65],
+    pub R_F: usize,
+    pub R_P: usize
 }
 
 impl<E: ScalarEngine> PoseidonConstants<E> {
-    const R_F: usize = 8;
-    const R_P: usize = 57;
-
     pub fn get() -> PoseidonConstants<E> {
         let x = [E::Fr::from_str("37345632969122366339479018636287576902591287402769888592809137730076985234624").expect("failure generating constants"),
             E::Fr::from_str("43642736231786445543594285260982040063161434341536170538168202484589139796416").expect("failure generating constants"),
@@ -641,7 +640,9 @@ impl<E: ScalarEngine> PoseidonConstants<E> {
 
         PoseidonConstants {
             mds,
-            rounds
+            rounds,
+            R_F: 8,
+            R_P: 57
         }
     }
 }

@@ -10,6 +10,96 @@ use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::num::{AllocatedNum, Num};
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
+    pub fn poseidon_sbox<CS>(&self, mut cs: CS, namespace: &str, num: &Num<E>) -> Result<AllocatedNum<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+        let square = AllocatedNum::alloc(
+            cs.namespace(|| format!("{}: square", namespace)), || {
+                let mut tmp = num.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                tmp.square();
+                Ok(tmp)
+            },
+        )?;
+
+        cs.enforce(|| format!("{}: enforce square", namespace),
+                   |_| num.lc(E::Fr::one()),
+                   |_| num.lc(E::Fr::one()),
+                   |lc| lc + square.get_variable());
+
+        let square_square = square.square(cs.namespace(|| format!("{}: square square", namespace)))?;
+
+        let ans = AllocatedNum::alloc(
+            cs.namespace(|| format!("{}: final", namespace)), || {
+                let mut tmp = num.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+                tmp.mul_assign(&square_square.get_value().ok_or(SynthesisError::AssignmentMissing)?);
+                Ok(tmp)
+            },
+        )?;
+
+        cs.enforce(|| format!("{}: enforce final", namespace),
+                   |_| num.lc(E::Fr::one()),
+                   |lc| lc + square_square.get_variable(),
+                   |lc| lc + ans.get_variable());
+
+        Ok(ans)
+    }
+
+    pub fn poseidon_round<CS>(&self, mut cs: CS, namespace: &str, mut input: [Num<E>; 9], round: usize) -> Result<[Num<E>; 9], SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+
+        if round < self.constants.poseidon.R_F / 2 || round >= self.constants.poseidon.R_P + self.constants.poseidon.R_F / 2 {
+            for i in 0..9 {
+                let str = format!("{}: {} {}", namespace, round, i);
+                let calc = self.poseidon_sbox(cs.namespace(|| str.clone()), str.as_ref(), &input[i])?;
+               input[i] = Num::from(calc);
+            }
+        }
+
+        else {
+            for i in 0..1 {
+                let str = format!("{}: {} {}", namespace, round, i);
+                let calc = self.poseidon_sbox(cs.namespace(|| str.clone()), str.as_ref(), &input[i])?;
+                input[i] = Num::from(calc);
+            }
+        }
+
+        let mut output: [Num<E>; 9] = [Num::zero(), Num::zero(), Num::zero(),Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
+
+        for i in 0..9 {
+            for j in 0..9 {
+                output[i] = output[i].clone() + input[j].multiply(self.constants.poseidon.mds[i][j]);
+            }
+        }
+
+        for i in 0..9 {
+            let mut o = output[i].clone();
+            o = o.add_bool_with_coeff(CS::one(), &Boolean::constant(true), self.constants.poseidon.rounds[round][i]);
+            output[i] = o;
+            output[i].simplify();
+        }
+
+        Ok(output)
+    }
+
+    pub fn poseidon<CS>(&self, mut cs: CS, namespace: &str, input: [Num<E>; 8]) -> Result<Num<E>, SynthesisError>
+        where CS: ConstraintSystem<E>
+    {
+
+        let mut state: [Num<E>; 9] = [Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
+        for i in 0..8 {
+            state[i] = input[i].clone();
+        }
+
+        for round in 0..(self.constants.poseidon.R_F + self.constants.poseidon.R_P) {
+            let namespace = format!("{}: {}", namespace, round);
+            state = self.poseidon_round(cs.namespace(|| namespace.clone()), namespace.as_str(), state, round)?;
+        }
+
+        Ok(state[0].clone())
+    }
+
+
     pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, Vec<Boolean>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E>
     {

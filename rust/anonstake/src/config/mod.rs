@@ -4,7 +4,8 @@ use crate::constants::binomial_constants::TauValue;
 pub(crate) enum RunMode {
     Single,
     SingleBatch,
-    DoubleBatch
+    DoubleBatch,
+    OnlyGenParams
 }
 
 #[derive(Clone)]

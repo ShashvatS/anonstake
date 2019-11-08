@@ -19,6 +19,7 @@ pub mod constants;
 pub mod circuit;
 pub mod config;
 pub mod link;
+pub mod cli;
 
 use config::RunConfig;
 use crate::config::RunMode;

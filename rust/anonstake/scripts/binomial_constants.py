@@ -115,7 +115,8 @@ def runAll(tau_vals):
                 out.write(line)
 
 if __name__ == "__main__":
-    runAll([1500, 2000, 2990, 5000])
+    # runAll([1500, 2000, 2990, 5000])
+    runAll([20])
 
 
 

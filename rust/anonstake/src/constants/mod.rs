@@ -5,6 +5,7 @@ use crate::constants::mimc_constants::MiMCConstants;
 pub mod mimc_constants;
 pub mod binomial_constants;
 pub mod poseidon_constants;
+pub mod binomial_constants_impl;
 
 pub struct Constants<'a, E: JubjubEngine>{
     pub mimc: mimc_constants::MiMCConstants<E>,

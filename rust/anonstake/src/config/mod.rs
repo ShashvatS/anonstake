@@ -18,7 +18,8 @@ pub(crate) struct RunConfig<'a> {
     pub(crate) params_out_file: &'a str,
     pub(crate) params_in_file: &'a str,
     pub(crate) check_params: bool,
-    pub(crate) mode: RunMode
+    pub(crate) mode: RunMode,
+    pub(crate) use_poseidon: bool
 }
 
 impl RunConfig<'_> {
@@ -32,7 +33,8 @@ impl RunConfig<'_> {
             params_out_file: "./output/params_tau1500_bp",
             params_in_file: "./output/params_tau1500_bp",
             check_params: false,
-            mode: RunMode::Single
+            mode: RunMode::Single,
+            use_poseidon: true
         }
     }
 
@@ -46,7 +48,8 @@ impl RunConfig<'_> {
             params_out_file: "./output/debug_params_tau1500_bp",
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
-            mode: RunMode::Single
+            mode: RunMode::Single,
+            use_poseidon: true
         }
     }
 
@@ -60,7 +63,8 @@ impl RunConfig<'_> {
             params_out_file: "./output/debug_params_tau1500_bp",
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
-            mode: RunMode::SingleBatch
+            mode: RunMode::SingleBatch,
+            use_poseidon: true
         }
     }
 
@@ -74,7 +78,8 @@ impl RunConfig<'_> {
             params_out_file: "./output/debug_params_tau1500_bp",
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
-            mode: RunMode::DoubleBatch
+            mode: RunMode::DoubleBatch,
+            use_poseidon: true
         }
     }
 }

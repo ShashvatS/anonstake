@@ -31,14 +31,14 @@ fn run(config: RunConfig) {
 
     if config.test_constraint_system {
         let mut cs = TestConstraintSystem::<Bls12>::new();
-        let anonstake = AnonStake::<Bls12>::init_pure_random(&constants, true, config.merkle_height);
+        let anonstake = AnonStake::<Bls12>::init_pure_random(&constants, true, config.merkle_height, config.use_poseidon);
         anonstake.synthesize(&mut cs).unwrap();
 
         println!("{} {}", cs.num_constraints(), cs.num_inputs());
     }
     if config.create_params {
         let params = {
-            let anonstake = AnonStake::<Bls12>::init_empty(&constants, true, config.merkle_height);
+            let anonstake = AnonStake::<Bls12>::init_empty(&constants, true, config.merkle_height, config.use_poseidon);
             generate_random_parameters(anonstake, rng).unwrap()
         };
 
@@ -56,11 +56,11 @@ fn run(config: RunConfig) {
     let start = Instant::now();
     let (proof, input) = match config.mode {
         RunMode::Single => {
-            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1);
+            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1, config.use_poseidon);
             create_random_proof_with_input(anonstake, &params, rng).unwrap()
         },
         RunMode::SingleBatch => {
-            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1);
+            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1, config.use_poseidon);
 
             let proof_kernel = precompute_proof(anonstake.clone(), &params).unwrap();
             println!("Precomputation Time: {}", start.elapsed().as_millis());
@@ -72,7 +72,7 @@ fn run(config: RunConfig) {
             res
         },
         RunMode::DoubleBatch => {
-            let mut iter = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1).into_iter();
+            let mut iter = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1, config.use_poseidon).into_iter();
 
             let copy = iter.next().unwrap();
             let proof_kernel = precompute_proof(copy.clone(), &params).unwrap();
@@ -87,6 +87,11 @@ fn run(config: RunConfig) {
             println!("Finish Time (second proof): {}", start.elapsed().as_millis());
 
             res
+        }
+        RunMode::OnlyGenParams => {
+            //TODO: implement
+            let anonstake = AnonStake::<Bls12>::init_testing(&constants, config.is_bp, config.merkle_height, 1, config.use_poseidon);
+            create_random_proof_with_input(anonstake, &params, rng).unwrap()
         }
     };
 

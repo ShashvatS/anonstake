@@ -15,6 +15,7 @@ pub mod gadgets;
 pub struct AnonStake<'a, E: JubjubEngine> {
     pub constants: &'a crate::constants::Constants<'a, E>,
     pub is_bp: bool,
+    pub use_poseidon: bool,
     pub pub_input: PubInput<E>,
     pub aux_input: AuxInput<E>,
     pub bp_pub_input: BlockProposerPubInput,

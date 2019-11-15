@@ -67,7 +67,8 @@ pub fn get_run_config() -> Result<(), CLIError> {
                 params_out_file: "",
                 params_in_file: path,
                 check_params: false,
-                mode: RunMode::Single
+                mode: RunMode::Single,
+                use_poseidon: true
             });
         }
     }

@@ -30,13 +30,15 @@ pub fn get_run_config<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
         return Ok(gen_params);
     }
 
+    if &args[1] == "--test" || &args[1] == "-t" {
+        return Ok(sample_all_proofs());
+    }
+
     return Ok(vec![]);
 }
 
 
 pub fn learn_params_gen<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
-    println!("{}", Path::new("./prover_params").exists());
-
     if !Path::new("./prover_params").exists() {
         match create_dir(&Path::new("./prover_params")) {
             Err(e) => {
@@ -94,12 +96,57 @@ pub fn learn_params_gen<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
                     check_params: false,
                     mode: RunMode::OnlyGenParams,
                     use_poseidon,
-                    file_loc: path
+                    file_loc: path,
                 });
             }
         }
     }
 
-    println!("\nAfter the parameters have been generated, re-run this program\n\n");
+    if !all_exist {
+        println!("\nAfter the parameters have been generated, re-run this program\n\n");
+    }
+
     Ok(configs)
+}
+
+pub fn sample_all_proofs<'a>() -> Vec<RunConfig<'a>> {
+    let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
+    let is_bp = ["_block_proposer", "", "", ""];
+
+    let mut configs = vec![];
+
+    for i in 0..4 {
+        for use_poseidon in vec![true, false] {
+            let tau: &str = (&tau_vals[i]).into();
+            let bp = &is_bp[i];
+            let up = if use_poseidon { "" } else { "_no_poseidon" };
+
+            let param = format!("{}{}{}", tau, bp, up);
+            let path = format!("./prover_params/{}.params", &param);
+
+            let tau = (&tau_vals[i]).clone();
+            let is_bp = (i == 0);
+
+            let merkle_height = match use_poseidon {
+                true => 10,
+                false => 29
+            };
+
+            configs.push(RunConfig {
+                tau,
+                is_bp,
+                merkle_height,
+                test_constraint_system: true,
+                create_params: true,
+                params_out_file: "",
+                params_in_file: "",
+                check_params: false,
+                mode: RunMode::Sample,
+                use_poseidon,
+                file_loc: path,
+            });
+        }
+    }
+
+    configs
 }

@@ -5,7 +5,8 @@ pub enum RunMode {
     Single,
     SingleBatch,
     DoubleBatch,
-    OnlyGenParams
+    OnlyGenParams,
+    Sample
 }
 
 #[derive(Clone)]

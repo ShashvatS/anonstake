@@ -1,7 +1,7 @@
 use crate::constants::binomial_constants::TauValue;
 
 #[derive(Clone)]
-pub(crate) enum RunMode {
+pub enum RunMode {
     Single,
     SingleBatch,
     DoubleBatch,
@@ -9,17 +9,18 @@ pub(crate) enum RunMode {
 }
 
 #[derive(Clone)]
-pub(crate) struct RunConfig<'a> {
-    pub(crate) tau: TauValue,
-    pub(crate) is_bp: bool,
-    pub(crate) merkle_height: usize,
-    pub(crate) test_constraint_system: bool,
-    pub(crate) create_params: bool,
-    pub(crate) params_out_file: &'a str,
-    pub(crate) params_in_file: &'a str,
-    pub(crate) check_params: bool,
-    pub(crate) mode: RunMode,
-    pub(crate) use_poseidon: bool
+pub struct RunConfig<'a> {
+    pub tau: TauValue,
+    pub is_bp: bool,
+    pub merkle_height: usize,
+    pub test_constraint_system: bool,
+    pub create_params: bool,
+    pub params_out_file: &'a str,
+    pub params_in_file: &'a str,
+    pub check_params: bool,
+    pub mode: RunMode,
+    pub use_poseidon: bool,
+    pub file_loc: String
 }
 
 impl RunConfig<'_> {
@@ -34,7 +35,8 @@ impl RunConfig<'_> {
             params_in_file: "./output/params_tau1500_bp",
             check_params: false,
             mode: RunMode::Single,
-            use_poseidon: true
+            use_poseidon: true,
+            file_loc: "".to_owned()
         }
     }
 
@@ -49,7 +51,8 @@ impl RunConfig<'_> {
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
             mode: RunMode::Single,
-            use_poseidon: true
+            use_poseidon: true,
+            file_loc: "".to_owned()
         }
     }
 
@@ -64,7 +67,8 @@ impl RunConfig<'_> {
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
             mode: RunMode::SingleBatch,
-            use_poseidon: true
+            use_poseidon: true,
+            file_loc: "".to_owned()
         }
     }
 
@@ -79,7 +83,8 @@ impl RunConfig<'_> {
             params_in_file: "./output/debug_params_tau1500_bp",
             check_params: false,
             mode: RunMode::DoubleBatch,
-            use_poseidon: true
+            use_poseidon: true,
+            file_loc: "".to_owned()
         }
     }
 }

@@ -1,15 +1,35 @@
 use std::env;
 use std::path::Path;
 use std::fs::create_dir;
-use crate::config::{RunConfig, RunMode};
 use crate::constants::binomial_constants::TauValue::{Tau20, Tau1500, Tau2990, Tau5000, Tau2000};
 use bellman::multicore::implementation;
 use std::sync::atomic::Ordering;
 use num_cpus;
+use crate::constants::binomial_constants::TauValue;
 
 pub enum CLIError {
     DirectoryCreationFailure
 }
+
+#[derive(Clone)]
+pub enum RunMode {
+    OnlyGenParams(String),
+    Sample(String),
+    Single(String, String, u32),
+    Batch(String, String, u32, u32)
+}
+
+#[derive(Clone)]
+pub struct RunConfig {
+    pub tau: TauValue,
+    pub is_bp: bool,
+    pub merkle_height: usize,
+    pub test_constraint_system: bool,
+    pub check_params: bool,
+    pub mode: RunMode,
+    pub use_poseidon: bool
+}
+
 
 pub fn get_run_config() -> Result<Vec<RunConfig>, CLIError> {
     if !Path::new("./prover_params").exists() {

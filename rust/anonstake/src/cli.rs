@@ -110,17 +110,13 @@ pub fn get_params_gen() -> Result<Vec<RunConfig>, CLIError> {
                 match path {
                     Err(_) => return Err(CLIError::CannotAccessCWD),
                     Ok(mut path) => {
-                        path.push("prover_params");
-                        path.set_file_name(&param);
-                        path.set_extension(".params");
+                        path.push(format!("prover_params/{}.params", &param));
                         path
                     }
                 }
             };
 
-            let exists = path.exists();
-
-            if !exists {
+            if !path.exists() {
                 if all_exist {
                     println!("The following parameters for the following zk-SNARK circuit need to be generated: ");
                     all_exist = false;
@@ -172,9 +168,7 @@ pub fn sample_all_proofs() -> Result<Vec<RunConfig>, CLIError> {
                 match path {
                     Err(_) => return Err(CLIError::CannotAccessCWD),
                     Ok(mut path) => {
-                        path.push("prover_params");
-                        path.set_file_name(&param);
-                        path.set_extension(".params");
+                        path.push(format!("prover_params/{}.params", &param));
                         path
                     }
                 }
@@ -303,9 +297,7 @@ pub fn read_command_line_params(mut args: Vec<String>) -> Result<Vec<RunConfig>,
             let path = match path {
                 Err(_) => return Err(CLIError::CannotAccessCWD),
                 Ok(mut path) => {
-                    path.push("prover_params");
-                    path.set_file_name(&param);
-                    path.set_extension(".params");
+                    path.push(format!("prover_params/{}.params", &param));
                     path
                 }
             };
@@ -314,9 +306,7 @@ pub fn read_command_line_params(mut args: Vec<String>) -> Result<Vec<RunConfig>,
             let output_file = match output_file {
                 Err(_) => return Err(CLIError::CannotAccessCWD),
                 Ok(mut path) => {
-                    path.push("benchmarks");
-                    path.set_file_name(format!("{}_{}_threads_v{}", param, cpunum, version));
-                    path.set_extension(".csv");
+                    path.push(format!("benchmarks/{}_{}_threads_v{}.csv", &param, cpunum, version));
                     path
                 }
             };

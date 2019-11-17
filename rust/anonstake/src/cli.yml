@@ -1,0 +1,97 @@
+name: anonstake
+version: "1.0"
+author: omitted <@gmail.com>
+about: creates and benchmarks anonstake proofs
+subcommands:
+  - test:
+      about: create and verify an anonymous soritition proofs for each role
+      version: "1.0"
+      author: omitted <@gmail.com>
+  - gen_params:
+      about: generates zk-snark parameters for each possible circuit
+      version: "1.0"
+      author: omitted <@gmail.com>
+  - single:
+      about: generate multiple anonymous soritition proofs without using batch proving; will call params instead if zk-snark paramters have not been generated yet
+      version: "1.0"
+      author: omitted <@gmail.com>
+      args:
+        - role:
+            short: r
+            long: role
+            required: true
+            help: |
+              (0 - 7) selects which zk-snark circuit to use
+              0: tau = 20 (circuit for block proposal)
+              1: tau = 20 (^ without poseidon hash function)
+              2: tau = 1500 (circuit for cert-voting)
+              3: tau = 1500 (^ without poseidon hash function)
+              4: tau = 2990 (circuit for soft-voting)
+              5: tau = 2990 (^ without poseidon hash function)
+              6: tau = 5000 (circuit for next-voting)
+              7: tau = 5000 (^ without poseidon hash function)
+        - trials:
+            short: t
+            long: trials
+            required: true
+            help: how many anonymous sortition proofs to make
+        - threads:
+            short: c
+            long: threads
+            required: true
+            help: how many threads to run this program with
+        - output:
+            short: o
+            long: output
+            required: true
+            help: |
+              benchmark data will be written to ./benchmarks/(params)_(threads)_threads_v(output).csv
+              where c is the number of threads and o is the given input
+  - batch:
+      about: |
+        generate multiple anonymous soritition proofs using batch proving
+        will call params instead if zk-snark paramters have not been generated yet
+      version: "1.0"
+      author: omitted <@gmail.com>
+      args:
+        - role:
+            short: r
+            long: role
+            required: true
+            help: |
+              (0 - 7) selects which zk-snark circuit to use
+              0: tau = 20 (circuit for block proposal)
+              1: tau = 20 (^ without poseidon hash function)
+              2: tau = 1500 (circuit for cert-voting)
+              3: tau = 1500 (^ without poseidon hash function)
+              4: tau = 2990 (circuit for soft-voting)
+              5: tau = 2990 (^ without poseidon hash function)
+              6: tau = 5000 (circuit for next-voting)
+              7: tau = 5000 (^ without poseidon hash function)
+        - trials:
+            short: t
+            long: trials
+            required: true
+            help: how many precomputations; see num_batch
+        - num_batch:
+            short: n
+            long: num_batch
+            required: true
+            help: |
+              how many batched proofs to create for each precomputation
+              creates trials * num_batch proofs in total
+        - threads:
+            short: c
+            long: threads
+            required: true
+            help: how many threads to run this program with
+        - output:
+            short: o
+            long: output
+            required: true
+            help: |
+              benchmark data will be written to ./benchmarks/(params)_(threads)_threads_v(output).csv
+              where c is the number of threads and o is the given input
+
+
+

@@ -1,28 +1,33 @@
-use pairing::bls12_381::Bls12;
-use crate::circuit::AnonStake;
-use zcash_primitives::jubjub::JubjubBls12;
-use bellman::gadgets::test::TestConstraintSystem;
-use bellman::Circuit;
-use rand::thread_rng;
-use bellman::groth16::{create_random_proof_with_input,
-                       precompute_proof,
-                       finish_random_proof,
-                       generate_random_parameters,
-                       prepare_verifying_key,
-                       verify_proof,
-                       Parameters};
+#[macro_use]
+extern crate clap;
+
 use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use std::time::Instant;
+
+use rand::thread_rng;
+
+use bellman::Circuit;
+use bellman::gadgets::test::TestConstraintSystem;
+use bellman::groth16::{create_random_proof_with_input,
+                       finish_random_proof,
+                       generate_random_parameters,
+                       Parameters,
+                       precompute_proof,
+                       prepare_verifying_key,
+                       verify_proof};
+use pairing::bls12_381::Bls12;
+use zcash_primitives::jubjub::JubjubBls12;
+
+use crate::circuit::AnonStake;
+use crate::cli::{get_run_config, RunConfig, RunMode};
+use crate::constants::Constants;
 
 pub mod constants;
 pub mod circuit;
 pub mod link;
 pub mod cli;
-
-use crate::cli::{get_run_config, RunConfig, RunMode};
-use crate::constants::Constants;
-use std::io::Write;
 
 fn run_notification(config: &RunConfig, constants: &Constants<Bls12>) {
     let param = {

@@ -55,7 +55,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     {
         //println!("poseidon round");
 
-        if round < self.constants.poseidon.R_F / 2 || round >= self.constants.poseidon.R_P + self.constants.poseidon.R_F / 2 {
+        if round < self.constants.poseidon.r_f / 2 || round >= self.constants.poseidon.r_p + self.constants.poseidon.r_f / 2 {
             for i in 0..9 {
                 let str = format!("{}: {} {}", namespace, round, i);
                 let calc = self.poseidon_sbox(cs.namespace(|| str.clone()), str.as_ref(), &input[i])?;
@@ -95,7 +95,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             state[i] = input[i].clone();
         }
 
-        for round in 0..(self.constants.poseidon.R_F + self.constants.poseidon.R_P) {
+        for round in 0..(self.constants.poseidon.r_f + self.constants.poseidon.r_p) {
             let namespace = format!("{}: {}", namespace, round);
             state = self.poseidon_round(cs.namespace(|| namespace.clone()), namespace.as_str(), state, round)?;
         }
@@ -376,7 +376,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok(())
     }
 
-    pub fn coin_commitment_membership<CS>(&self, mut cs: CS, namespace: &str, cm: EdwardsPoint<E>) -> Result<(), SynthesisError>
+    pub fn coin_commitment_membership<CS>(&self, cs: CS, namespace: &str, cm: EdwardsPoint<E>) -> Result<(), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         if self.use_poseidon {
@@ -576,7 +576,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     }
 
     //modified from above
-    pub fn serial_number_nonmembership<CS>(&self, mut cs: CS, namespace: &str, sn_box: AllocatedNum<E>) -> Result<(), SynthesisError>
+    pub fn serial_number_nonmembership<CS>(&self, cs: CS, namespace: &str, sn_box: AllocatedNum<E>) -> Result<(), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         if self.use_poseidon {

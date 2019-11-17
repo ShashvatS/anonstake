@@ -1,4 +1,4 @@
-use ff::{PrimeField, ScalarEngine};
+use ff::ScalarEngine;
 
 #[derive(Clone)]
 pub enum TauValue {

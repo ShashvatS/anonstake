@@ -2,43 +2,16 @@ use std::env;
 use std::path::Path;
 use std::fs::create_dir;
 use crate::config::{RunConfig, RunMode};
-use crate::constants::binomial_constants::TauValue;
-use crate::constants::binomial_constants::TauValue::{Tau20, Tau1500, Tau2990, Tau5000};
+use crate::constants::binomial_constants::TauValue::{Tau20, Tau1500, Tau2990, Tau5000, Tau2000};
+use bellman::multicore::implementation;
+use std::sync::atomic::Ordering;
+use num_cpus;
 
 pub enum CLIError {
     DirectoryCreationFailure
 }
 
-
-pub fn get_run_config<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
-    let args: Vec<String> = env::args().collect();
-    for a in &args {
-        print!("{} ", a);
-    }
-    println!("");
-
-    if args.len() == 1 {
-        println!("use --help or -h to print instructions");
-        return Ok(vec![]);
-    } else if &args[1] == "--help" || &args[1] == "-h" {
-        println!("Print instructions here...");
-        return Ok(vec![]);
-    }
-
-    let gen_params = learn_params_gen()?;
-    if gen_params.len() != 0 {
-        return Ok(gen_params);
-    }
-
-    if &args[1] == "--test" || &args[1] == "-t" {
-        return Ok(sample_all_proofs());
-    }
-
-    return Ok(vec![]);
-}
-
-
-pub fn learn_params_gen<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
+pub fn get_run_config() -> Result<Vec<RunConfig>, CLIError> {
     if !Path::new("./prover_params").exists() {
         match create_dir(&Path::new("./prover_params")) {
             Err(e) => {
@@ -53,6 +26,166 @@ pub fn learn_params_gen<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
         }
     }
 
+    if !Path::new("./benchmarks").exists() {
+        match create_dir(&Path::new("./benchmarks")) {
+            Err(e) => {
+                println!("{}", e.to_string());
+                println!("Error in creating directory ./benchmarks");
+                println!("Please try running this program again");
+                return Err(CLIError::DirectoryCreationFailure);
+            }
+            Ok(_) => {
+                println!("Created directory ./benchmarks\n");
+            }
+        }
+    }
+
+    let args: Vec<String> = env::args().collect();
+    for a in &args {
+        print!("{} ", a);
+    }
+    println!("");
+
+    if args.len() == 1 {
+        println!("use --help or -h to print instructions");
+        return Ok(vec![]);
+    } else if &args[1] == "--help" || &args[1] == "-h" {
+        println!("Print instructions here...");
+        return Ok(vec![]);
+    }
+
+    let gen_params = get_params_gen()?;
+    if gen_params.len() != 0 {
+        return Ok(gen_params);
+    }
+
+    if &args[1] == "--test" || &args[1] == "-t" {
+        return Ok(sample_all_proofs());
+    }
+
+    read_command_line_params(args)
+}
+
+pub fn read_command_line_params(mut args: Vec<String>) -> Result<Vec<RunConfig>, CLIError> {
+    let (tau, is_bp, use_poseidon) = {
+        let num = &args[1].parse::<u8>();
+
+        let num = match num {
+            Ok(n) => n % 8,
+            Err(_) => 0
+        };
+
+        match num {
+            0 => (Tau20, true, true),
+            1 => (Tau20, true, false),
+            2 => (Tau1500, false, true),
+            3 => (Tau1500, false, false),
+            4 => (Tau2990, false, true),
+            5 => (Tau2990, false, false),
+            6 => (Tau5000, false, true),
+            7 => (Tau5000, false, false),
+            _ => (Tau2000, false, false)
+        }
+    };
+
+    let merkle_height = if use_poseidon { 10 } else { 29 };
+
+    let is_batch = {
+        if args.len() <= 2 {
+            args.push("single".to_owned());
+        }
+
+        &args[2] == "batch"
+    };
+
+    let trials = {
+        if args.len() <= 3 {
+            args.push("5".to_owned());
+        }
+
+        let res = &args[3].parse::<u32>();
+
+        match res {
+            Ok(a) => a.clone(),
+            Err(_) => 5
+        }
+    };
+
+    let num_batch = {
+        if args.len() <= 4 {
+            args.push("24".to_owned());
+        }
+
+        let res = &args[4].parse::<u32>();
+
+        match res {
+            Ok(a) => a.clone(),
+            Err(_) => 24
+        }
+    };
+
+    let cpunum = {
+        if args.len() <= 5 {
+            args.push("---".to_owned());
+        }
+
+        let res = args[5].parse::<usize>();
+
+        match res {
+            Ok(a) => a,
+            Err(_) => num_cpus::get()
+        }
+    };
+
+    let version = {
+        if args.len() <= 6 {
+            args.push("---".to_owned());
+        }
+
+        let res = args[6].parse::<usize>();
+
+        match res {
+            Ok(a) => a,
+            Err(_) => 0
+        }
+    };
+
+    implementation::NUM_CPUS.store(cpunum, Ordering::SeqCst);
+    implementation::HAS_LOADED.store(true, Ordering::SeqCst);
+
+    let mode = {
+        let param = {
+            let tau: &str = (&tau).into();
+            let bp = if is_bp { "_block_proposer" } else { "" };
+            let up = if use_poseidon { "" } else { "_no_poseidon" };
+            format!("{}{}{}", tau, bp, up)
+        };
+
+        let path = format!("./prover_params/{}.params", &param);
+
+        let output_file = format!("./benchmarks/{}_{}_threads_v{}.csv", param, cpunum, version);
+
+        if is_batch {
+            RunMode::Batch(path, output_file, trials, num_batch)
+        } else {
+            RunMode::Single(path, output_file, trials)
+        }
+    };
+
+    let config = RunConfig {
+        tau,
+        is_bp,
+        merkle_height: merkle_height,
+        test_constraint_system: false,
+        check_params: false,
+        mode: mode,
+        use_poseidon
+    };
+
+    Ok(vec![config])
+}
+
+pub fn get_params_gen() -> Result<Vec<RunConfig>, CLIError> {
     let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
     let is_bp = ["_block_proposer", "", "", ""];
 
@@ -78,25 +211,18 @@ pub fn learn_params_gen<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
                 println!("{} ", param);
 
                 let tau = (&tau_vals[i]).clone();
-                let is_bp = (i == 0);
+                let is_bp: bool = i == 0;
 
-                let merkle_height = match use_poseidon {
-                    true => 10,
-                    false => 29
-                };
+                let merkle_height = if use_poseidon { 10 } else { 29 };
 
                 configs.push(RunConfig {
                     tau,
                     is_bp,
                     merkle_height,
                     test_constraint_system: true,
-                    create_params: true,
-                    params_out_file: "",
-                    params_in_file: "",
                     check_params: false,
-                    mode: RunMode::OnlyGenParams,
-                    use_poseidon,
-                    file_loc: path,
+                    mode: RunMode::OnlyGenParams(path),
+                    use_poseidon
                 });
             }
         }
@@ -109,7 +235,7 @@ pub fn learn_params_gen<'a>() -> Result<Vec<RunConfig<'a>>, CLIError> {
     Ok(configs)
 }
 
-pub fn sample_all_proofs<'a>() -> Vec<RunConfig<'a>> {
+pub fn sample_all_proofs() -> Vec<RunConfig> {
     let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
     let is_bp = ["_block_proposer", "", "", ""];
 
@@ -125,7 +251,7 @@ pub fn sample_all_proofs<'a>() -> Vec<RunConfig<'a>> {
             let path = format!("./prover_params/{}.params", &param);
 
             let tau = (&tau_vals[i]).clone();
-            let is_bp = (i == 0);
+            let is_bp = i == 0;
 
             let merkle_height = match use_poseidon {
                 true => 10,
@@ -137,13 +263,9 @@ pub fn sample_all_proofs<'a>() -> Vec<RunConfig<'a>> {
                 is_bp,
                 merkle_height,
                 test_constraint_system: true,
-                create_params: true,
-                params_out_file: "",
-                params_in_file: "",
                 check_params: false,
-                mode: RunMode::Sample,
-                use_poseidon,
-                file_loc: path,
+                mode: RunMode::Sample(path),
+                use_poseidon
             });
         }
     }

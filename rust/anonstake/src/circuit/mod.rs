@@ -236,6 +236,13 @@ pub struct AnonStakeIterator<'a, E: JubjubEngine> {
     a: AnonStake<'a, E>
 }
 
+impl<'a, E: JubjubEngine> AnonStakeIterator<'a, E> {
+    pub fn get_copy(&self) -> Option<AnonStake<'a, E>> {
+        Some(self.a.clone())
+    }
+}
+
+
 impl<'a, E: JubjubEngine> Iterator for AnonStakeIterator<'a, E> {
     type Item = AnonStake<'a, E>;
 

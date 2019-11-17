@@ -3,8 +3,8 @@ use ff::{Field, PrimeField, ScalarEngine};
 pub struct PoseidonConstants<E: ScalarEngine> {
     pub mds: [[<E as ScalarEngine>::Fr; 9]; 9],
     pub rounds: [[<E as ScalarEngine>::Fr; 9]; 65],
-    pub R_F: usize,
-    pub R_P: usize
+    pub r_f: usize,
+    pub r_p: usize
 }
 
 impl<E: ScalarEngine> PoseidonConstants<E> {
@@ -641,8 +641,8 @@ impl<E: ScalarEngine> PoseidonConstants<E> {
         PoseidonConstants {
             mds,
             rounds,
-            R_F: 8,
-            R_P: 57
+            r_f: 8,
+            r_p: 57
         }
     }
 }

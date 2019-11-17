@@ -20,6 +20,7 @@ subcommands:
             short: r
             long: role
             required: true
+            takes_value: true
             help: |
               (0 - 7) selects which zk-snark circuit to use
               0: tau = 20 (circuit for block proposal)
@@ -34,18 +35,21 @@ subcommands:
             short: t
             long: trials
             required: true
+            takes_value: true
             help: how many anonymous sortition proofs to make
         - threads:
             short: c
             long: threads
             required: true
+            takes_value: true
             help: how many threads to run this program with
         - output:
             short: o
             long: output
             required: true
+            takes_value: true
             help: |
-              benchmark data will be written to ./benchmarks/(params)_(threads)_threads_v(output).csv
+              benchmark data will be written to ./benchmarks/(params)_(threads)_threads_single_v(output).csv
               where c is the number of threads and o is the given input
   - batch:
       about: |
@@ -58,6 +62,7 @@ subcommands:
             short: r
             long: role
             required: true
+            takes_value: true
             help: |
               (0 - 7) selects which zk-snark circuit to use
               0: tau = 20 (circuit for block proposal)
@@ -72,11 +77,13 @@ subcommands:
             short: t
             long: trials
             required: true
+            takes_value: true
             help: how many precomputations; see num_batch
         - num_batch:
             short: n
             long: num_batch
             required: true
+            takes_value: true
             help: |
               how many batched proofs to create for each precomputation
               creates trials * num_batch proofs in total
@@ -84,13 +91,15 @@ subcommands:
             short: c
             long: threads
             required: true
+            takes_value: true
             help: how many threads to run this program with
         - output:
             short: o
             long: output
             required: true
+            takes_value: true
             help: |
-              benchmark data will be written to ./benchmarks/(params)_(threads)_threads_v(output).csv
+              benchmark data will be written to ./benchmarks/(params)_(threads)_threads_batch_v(output).csv
               where c is the number of threads and o is the given input
 
 

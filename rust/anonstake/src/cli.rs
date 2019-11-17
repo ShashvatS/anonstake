@@ -256,7 +256,7 @@ pub fn read_command_line_params(matches: ArgMatches) -> Result<Vec<RunConfig>, C
                 let output_file = match output_file {
                     Err(_) => return Err(CLIError::CannotAccessCWD),
                     Ok(mut path) => {
-                        path.push(format!("benchmarks/{}_{}_threads_v{}.csv", &param, threads, version));
+                        path.push(format!("benchmarks/{}_{}_threads_{}_v{}.csv", &param, threads, single_batch, version));
                         path
                     }
                 };

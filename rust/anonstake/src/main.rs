@@ -104,7 +104,6 @@ fn run(config: RunConfig) {
             run_notification(&config, &constants);
 
             let params = {
-                println!("{}", &params_file.to_str().unwrap());
                 let path = Path::new(&params_file);
                 let file = File::open(path).unwrap();
                 Parameters::<Bls12>::read(file, config.check_params).unwrap()
@@ -127,6 +126,16 @@ fn run(config: RunConfig) {
             for time in times{
                 output_file.write_all(format!("{}\n", time).as_ref()).unwrap();
             }
+
+            let pvk = prepare_verifying_key(&params.vk);
+            for (proof, input) in &proofs {
+                let result = verify_proof(&pvk, &proof, &input[1..]).unwrap();
+                if !result {
+                    println!("Some proofs failed to verify...");
+                    return;
+                }
+            }
+            println!("All proofs verified");
         },
         RunMode::Batch(params_file, output_file, trials, num_batch) => {
             let trials = *trials as usize;
@@ -135,7 +144,6 @@ fn run(config: RunConfig) {
             run_notification(&config, &constants);
 
             let params = {
-                println!("{}", &params_file.to_str().unwrap());
                 let path = Path::new(params_file.to_str().unwrap());
                 let file = File::open(path).unwrap();
                 Parameters::<Bls12>::read(file, config.check_params).unwrap()
@@ -173,15 +181,24 @@ fn run(config: RunConfig) {
                 }
             }
 
+            let pvk = prepare_verifying_key(&params.vk);
+            for (proof, input) in &proofs {
+                let result = verify_proof(&pvk, &proof, &input[1..]).unwrap();
+                if !result {
+                    println!("Some proofs failed to verify...");
+                    return;
+                }
+            }
+            println!("All proofs verified");
         }
     }
 }
 
 fn main() {
-    unsafe {
-        link::hello_world();
-        link::init();
-    }
+//    unsafe {
+//        link::hello_world();
+//        link::init();
+//    }
 
     if let Ok(config) = get_run_config() {
         for c in config {

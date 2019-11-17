@@ -12,7 +12,7 @@ use bellman::gadgets::{num, boolean};
 pub mod gadgets;
 
 #[derive(Clone)]
-pub struct AnonStake<'a, E: JubjubEngine> {
+pub struct  AnonStake<'a, E: JubjubEngine> {
     pub constants: &'a crate::constants::Constants<'a, E>,
     pub is_bp: bool,
     pub use_poseidon: bool,

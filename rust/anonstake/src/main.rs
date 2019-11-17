@@ -61,7 +61,7 @@ fn run(config: RunConfig) {
     match &config.mode {
         RunMode::OnlyGenParams(params_file) => {
             run_notification(&config, &constants);
-            println!("{}", &params_file);
+            println!("{}", &params_file.to_str().unwrap());
 
             let params = {
                 let anonstake = AnonStake::<Bls12>::init_empty(&constants, config.is_bp, config.merkle_height, config.use_poseidon);
@@ -78,7 +78,7 @@ fn run(config: RunConfig) {
             run_notification(&config, &constants);
 
             let params = {
-                println!("{}", &params_file);
+                println!("{}", &params_file.to_str().unwrap());
                 let path = Path::new(&params_file);
                 let file = File::open(path).unwrap();
                 Parameters::<Bls12>::read(file, config.check_params).unwrap()
@@ -99,7 +99,7 @@ fn run(config: RunConfig) {
             run_notification(&config, &constants);
 
             let params = {
-                println!("{}", &params_file);
+                println!("{}", &params_file.to_str().unwrap());
                 let path = Path::new(&params_file);
                 let file = File::open(path).unwrap();
                 Parameters::<Bls12>::read(file, config.check_params).unwrap()
@@ -130,8 +130,8 @@ fn run(config: RunConfig) {
             run_notification(&config, &constants);
 
             let params = {
-                println!("{}", &params_file);
-                let path = Path::new(&params_file);
+                println!("{}", &params_file.to_str().unwrap());
+                let path = Path::new(params_file.to_str().unwrap());
                 let file = File::open(path).unwrap();
                 Parameters::<Bls12>::read(file, config.check_params).unwrap()
             };

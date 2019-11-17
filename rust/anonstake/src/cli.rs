@@ -1,22 +1,26 @@
 use std::env;
-use std::path::Path;
 use std::fs::create_dir;
-use crate::constants::binomial_constants::TauValue::{Tau20, Tau1500, Tau2990, Tau5000, Tau2000};
-use bellman::multicore::implementation;
+use std::path::{ Path, PathBuf };
 use std::sync::atomic::Ordering;
+
 use num_cpus;
+
+use bellman::multicore::implementation;
+
+use crate::constants::binomial_constants::TauValue::{Tau1500, Tau20, Tau2000, Tau2990, Tau5000};
 use crate::constants::binomial_constants::TauValue;
 
 pub enum CLIError {
-    DirectoryCreationFailure
+    DirectoryCreationFailure,
+    CannotAccessCWD
 }
 
 #[derive(Clone)]
 pub enum RunMode {
-    OnlyGenParams(String),
-    Sample(String),
-    Single(String, String, u32),
-    Batch(String, String, u32, u32)
+    OnlyGenParams(PathBuf),
+    Sample(PathBuf),
+    Single(PathBuf, PathBuf, u32),
+    Batch(PathBuf, PathBuf, u32, u32)
 }
 
 #[derive(Clone)]
@@ -29,7 +33,6 @@ pub struct RunConfig {
     pub mode: RunMode,
     pub use_poseidon: bool
 }
-
 
 pub fn get_run_config() -> Result<Vec<RunConfig>, CLIError> {
     if !Path::new("./prover_params").exists() {
@@ -80,10 +83,124 @@ pub fn get_run_config() -> Result<Vec<RunConfig>, CLIError> {
     }
 
     if &args[1] == "--test" || &args[1] == "-t" {
-        return Ok(sample_all_proofs());
+        return sample_all_proofs();
     }
 
     read_command_line_params(args)
+}
+
+pub fn get_params_gen() -> Result<Vec<RunConfig>, CLIError> {
+    let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
+    let is_bp = ["_block_proposer", "", "", ""];
+
+    let mut configs = vec![];
+
+    let mut all_exist = true;
+    for i in 0..4 {
+        for use_poseidon in vec![true, false] {
+            let param = {
+                let tau: &str = (&tau_vals[i]).into();
+                let bp = &is_bp[i];
+                let up = if use_poseidon { "" } else { "_no_poseidon" };
+                format!("{}{}{}", tau, bp, up)
+            };
+
+            let path = {
+                let path = env::current_dir();
+                match path {
+                    Err(_) => return Err(CLIError::CannotAccessCWD),
+                    Ok(mut path) => {
+                        path.push("prover_params");
+                        path.set_file_name(&param);
+                        path.set_extension(".params");
+                        path
+                    }
+                }
+            };
+
+            let exists = path.exists();
+
+            if !exists {
+                if all_exist {
+                    println!("The following parameters for the following zk-SNARK circuit need to be generated: ");
+                    all_exist = false;
+                }
+
+                println!("{} ", param);
+
+                let tau = (&tau_vals[i]).clone();
+                let is_bp: bool = i == 0;
+
+                let merkle_height = if use_poseidon { 10 } else { 29 };
+
+                configs.push(RunConfig {
+                    tau,
+                    is_bp,
+                    merkle_height,
+                    test_constraint_system: true,
+                    check_params: false,
+                    mode: RunMode::OnlyGenParams(path),
+                    use_poseidon
+                });
+            }
+        }
+    }
+
+    if !all_exist {
+        println!("\nAfter the parameters have been generated, re-run this program\n\n");
+    }
+
+    Ok(configs)
+}
+
+pub fn sample_all_proofs() -> Result<Vec<RunConfig>, CLIError> {
+    let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
+    let is_bp = ["_block_proposer", "", "", ""];
+
+    let mut configs = vec![];
+
+    for i in 0..4 {
+        for use_poseidon in vec![true, false] {
+            let tau: &str = (&tau_vals[i]).into();
+            let bp = &is_bp[i];
+            let up = if use_poseidon { "" } else { "_no_poseidon" };
+
+            let path = {
+                let param = format!("{}{}{}", tau, bp, up);
+
+                let path = env::current_dir();
+                match path {
+                    Err(_) => return Err(CLIError::CannotAccessCWD),
+                    Ok(mut path) => {
+                        path.push("prover_params");
+                        path.set_file_name(&param);
+                        path.set_extension(".params");
+                        path
+                    }
+                }
+            };
+
+            let tau = (&tau_vals[i]).clone();
+            let is_bp = i == 0;
+
+            let merkle_height = match use_poseidon {
+                true => 10,
+                false => 29
+            };
+
+            configs.push(RunConfig {
+                tau,
+                is_bp,
+                merkle_height,
+                test_constraint_system: true,
+                check_params: false,
+                mode: RunMode::Sample(path),
+                use_poseidon
+            });
+        }
+    }
+
+    Ok(configs)
 }
 
 pub fn read_command_line_params(mut args: Vec<String>) -> Result<Vec<RunConfig>, CLIError> {
@@ -181,9 +298,31 @@ pub fn read_command_line_params(mut args: Vec<String>) -> Result<Vec<RunConfig>,
             format!("{}{}{}", tau, bp, up)
         };
 
-        let path = format!("./prover_params/{}.params", &param);
+        let (path, output_file) = {
+            let path = env::current_dir();
+            let path = match path {
+                Err(_) => return Err(CLIError::CannotAccessCWD),
+                Ok(mut path) => {
+                    path.push("prover_params");
+                    path.set_file_name(&param);
+                    path.set_extension(".params");
+                    path
+                }
+            };
 
-        let output_file = format!("./benchmarks/{}_{}_threads_v{}.csv", param, cpunum, version);
+            let output_file = env::current_dir();
+            let output_file = match output_file {
+                Err(_) => return Err(CLIError::CannotAccessCWD),
+                Ok(mut path) => {
+                    path.push("benchmarks");
+                    path.set_file_name(format!("{}_{}_threads_v{}", param, cpunum, version));
+                    path.set_extension(".csv");
+                    path
+                }
+            };
+
+            (path, output_file)
+        };
 
         if is_batch {
             RunMode::Batch(path, output_file, trials, num_batch)
@@ -203,92 +342,4 @@ pub fn read_command_line_params(mut args: Vec<String>) -> Result<Vec<RunConfig>,
     };
 
     Ok(vec![config])
-}
-
-pub fn get_params_gen() -> Result<Vec<RunConfig>, CLIError> {
-    let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
-    let is_bp = ["_block_proposer", "", "", ""];
-
-    let mut configs = vec![];
-
-    let mut all_exist = true;
-    for i in 0..4 {
-        for use_poseidon in vec![true, false] {
-            let tau: &str = (&tau_vals[i]).into();
-            let bp = &is_bp[i];
-            let up = if use_poseidon { "" } else { "_no_poseidon" };
-
-            let param = format!("{}{}{}", tau, bp, up);
-            let path = format!("./prover_params/{}.params", &param);
-            let exists = Path::new(&path).exists();
-
-            if !exists {
-                if all_exist {
-                    println!("The following parameters for the following zk-SNARK circuit need to be generated: ");
-                    all_exist = false;
-                }
-
-                println!("{} ", param);
-
-                let tau = (&tau_vals[i]).clone();
-                let is_bp: bool = i == 0;
-
-                let merkle_height = if use_poseidon { 10 } else { 29 };
-
-                configs.push(RunConfig {
-                    tau,
-                    is_bp,
-                    merkle_height,
-                    test_constraint_system: true,
-                    check_params: false,
-                    mode: RunMode::OnlyGenParams(path),
-                    use_poseidon
-                });
-            }
-        }
-    }
-
-    if !all_exist {
-        println!("\nAfter the parameters have been generated, re-run this program\n\n");
-    }
-
-    Ok(configs)
-}
-
-pub fn sample_all_proofs() -> Vec<RunConfig> {
-    let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
-    let is_bp = ["_block_proposer", "", "", ""];
-
-    let mut configs = vec![];
-
-    for i in 0..4 {
-        for use_poseidon in vec![true, false] {
-            let tau: &str = (&tau_vals[i]).into();
-            let bp = &is_bp[i];
-            let up = if use_poseidon { "" } else { "_no_poseidon" };
-
-            let param = format!("{}{}{}", tau, bp, up);
-            let path = format!("./prover_params/{}.params", &param);
-
-            let tau = (&tau_vals[i]).clone();
-            let is_bp = i == 0;
-
-            let merkle_height = match use_poseidon {
-                true => 10,
-                false => 29
-            };
-
-            configs.push(RunConfig {
-                tau,
-                is_bp,
-                merkle_height,
-                test_constraint_system: true,
-                check_params: false,
-                mode: RunMode::Sample(path),
-                use_poseidon
-            });
-        }
-    }
-
-    configs
 }

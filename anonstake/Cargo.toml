@@ -10,17 +10,17 @@ edition = "2018"
 
 [dependencies]
 rand = "0.7.2"
-bellman = { path = "../../librustzcash/bellman" }
+bellman = { path = "../librustzcash/bellman" }
 blake2b_simd = "0.5"
 blake2s_simd = "0.5"
-ff = { path = "../../librustzcash/ff" }
+ff = { path = "../librustzcash/ff" }
 libc = "0.2"
-pairing = { path = "../../librustzcash/pairing" }
+pairing = { path = "../librustzcash/pairing" }
 lazy_static = "1"
 byteorder = "1"
 rand_core = "0.5.1"
-zcash_primitives = { path = "../../librustzcash/zcash_primitives" }
-zcash_proofs = { path = "../../librustzcash/zcash_proofs" }
+zcash_primitives = { path = "../librustzcash/zcash_primitives" }
+zcash_proofs = { path = "../librustzcash/zcash_proofs" }
 num_cpus = "1.11.1"
 clap = { version = "2.33.0", features = ["yaml"] }
 

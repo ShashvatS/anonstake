@@ -3,6 +3,7 @@
   <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$" />
   <component name="CidrRootsConfiguration">
     <sourceRoots>
+      <file path="$PROJECT_DIR$/anonstake" />
       <file path="$PROJECT_DIR$/experiments" />
       <file path="$PROJECT_DIR$/libfft" />
       <file path="$PROJECT_DIR$/rust" />

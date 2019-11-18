@@ -1,2 +1,0 @@
-2019-11-18 12:57:37.894055
-/home/shashvat/CLionProjects/anonstake/rust/anonstake/target/release/build/anonstake-267d8003f0261b97/out

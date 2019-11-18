@@ -3,10 +3,6 @@ name = "anonstake"
 version = "0.1.0"
 authors = ["Shashvat Srivastava <shashvat.sri@gmail.com>"]
 edition = "2018"
-#links = "fft"
-#build = "build.rs"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 rand = "0.7.2"
@@ -23,10 +19,6 @@ zcash_primitives = { path = "../librustzcash/zcash_primitives" }
 zcash_proofs = { path = "../librustzcash/zcash_proofs" }
 num_cpus = "1.11.1"
 clap = { version = "2.33.0", features = ["yaml"] }
-
-#[build-dependencies]
-#cmake = "0.1.42"
-#cc = "1.0.46"
 
 [[bin]]
 name = "main"

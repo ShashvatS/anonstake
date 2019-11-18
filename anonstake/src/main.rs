@@ -26,7 +26,6 @@ use crate::constants::Constants;
 
 pub mod constants;
 pub mod circuit;
-pub mod link;
 pub mod cli;
 
 fn run_notification(config: &RunConfig, constants: &Constants<Bls12>) {
@@ -195,11 +194,6 @@ fn run(config: RunConfig) {
 }
 
 fn main() {
-//    unsafe {
-//        link::hello_world();
-//        link::init();
-//    }
-
     if let Ok(config) = get_run_config() {
         for c in config {
             run(c.clone());

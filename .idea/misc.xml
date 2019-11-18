@@ -6,12 +6,12 @@
       <file path="$PROJECT_DIR$/anonstake" />
       <file path="$PROJECT_DIR$/experiments" />
       <file path="$PROJECT_DIR$/libfft" />
+      <file path="$PROJECT_DIR$/librustzcash" />
       <file path="$PROJECT_DIR$/rust" />
     </sourceRoots>
     <libraryRoots>
       <file path="$PROJECT_DIR$/libff" />
       <file path="$PROJECT_DIR$/libfqfft" />
-      <file path="$PROJECT_DIR$/librustzcash" />
     </libraryRoots>
     <excludeRoots>
       <file path="$PROJECT_DIR$/build" />

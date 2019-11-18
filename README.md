@@ -33,4 +33,9 @@ access help of the single subcommand
 
 Example usages:
 
+$ ./main batch --threads=1 --role=6 --output=0 --trials=3 --num_batch=16
+$ ./main single --threads=1 --role=6 --output=0 --trials=16
+$ ./main batch --threads=16 --role=6 --output=0 --trials=3 --num_batch=16
+
+
 

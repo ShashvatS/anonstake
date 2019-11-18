@@ -2,17 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bellman" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libff" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libff/depends/ate-pairing" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libff/depends/xbyak" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft/depends/ate-pairing" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft/depends/gtest" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft/depends/libff" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft/depends/libff/depends/ate-pairing" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft/depends/libff/depends/xbyak" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/libfqfft/depends/xbyak" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/librustzcash" vcs="Git" />
   </component>
 </project>

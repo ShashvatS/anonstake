@@ -1,12 +1,3 @@
-[submodule "libfqfft"]
-	path = libfqfft
-	url = https://github.com/scipr-lab/libfqfft.git
-[submodule "libff"]
-	path = libff
-	url = https://github.com/scipr-lab/libff.git
 [submodule "librustzcash"]
 	path = librustzcash
 	url = git@github.com:ShashvatS/librustzcash.git
-[submodule "bellman"]
-	path = bellman
-	url = https://github.com/zkcrypto/bellman.git

@@ -19,6 +19,7 @@ zcash_primitives = { path = "../librustzcash/zcash_primitives" }
 zcash_proofs = { path = "../librustzcash/zcash_proofs" }
 num_cpus = "1.11.1"
 clap = { version = "2.33.0", features = ["yaml"] }
+sha2 = "0.8.1"
 
 [[bin]]
 name = "main"
@@ -27,6 +28,10 @@ path = "src/main.rs"
 [[bin]]
 name = "print_random_constants"
 path = "src/generate_random_constants.rs"
+
+[[bin]]
+name = "keyerasure"
+path = "src/forwardsecuretree.rs"
 
 [features]
 default = []

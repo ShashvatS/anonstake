@@ -1,7 +1,6 @@
 use rand::thread_rng;
 use ff::{Field, PrimeField, ScalarEngine};
 use pairing::bls12_381::Bls12;
-
 use std::io;
 
 fn main() {

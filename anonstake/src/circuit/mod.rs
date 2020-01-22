@@ -24,7 +24,7 @@ pub struct  AnonStake<'a, E: JubjubEngine> {
 
 impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
     fn synthesize<CS: ConstraintSystem<E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
-        let a_sk = AllocatedNum::alloc(cs.namespace(|| "allocate a_sk"), || self.aux_input.a_sk.ok_or(SynthesisError::AssignmentMissing))?;
+        let (a_sk, _role, role_bits) = self.forward_security(cs.namespace(|| "forward security"), "forward security")?;
 
         //kind of hacky but whatever, do not have enough time
         let allocated_zero = AllocatedNum::alloc(cs.namespace(|| "allocate fake zero"), || Ok(E::Fr::zero()))?;
@@ -35,15 +35,9 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
 
         self.coin_commitment_membership(cs.namespace(|| "coin commitment membership"), "coin commitment membership", cm)?;
 
-        let role = AllocatedNum::alloc(cs.namespace(|| "allocate role"), || self.pub_input.role.ok_or(SynthesisError::AssignmentMissing))?;
         let seed_sel = AllocatedNum::alloc(cs.namespace(|| "allocate seed_sel"), || self.pub_input.seed.ok_or(SynthesisError::AssignmentMissing))?;
+        seed_sel.inputize(cs.namespace(|| "inputize seed_sel"))?;
 
-        {
-            role.inputize(cs.namespace(|| "inputize role"))?;
-            seed_sel.inputize(cs.namespace(|| "inputize seed_sel"))?;
-        }
-
-        let role_bits = role.to_bits_le_strict(cs.namespace(|| "bits of role"))?;
         let seed_sel_bits = seed_sel.to_bits_le_strict(cs.namespace(|| "bits of seed_sel"))?;
 
         let hash_role_seed = {

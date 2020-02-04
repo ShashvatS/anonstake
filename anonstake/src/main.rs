@@ -122,9 +122,15 @@ fn run(config: RunConfig) {
 
             let mut output_file = File::create(output_file).unwrap();
 
+            let mut total_time = 0;
             for time in times{
                 output_file.write_all(format!("{}\n", time).as_ref()).unwrap();
+                total_time += time;
             }
+
+            let avg_time = total_time as f64 / trials as f64;
+            output_file.write_all(format!("average proof time: {}\n", avg_time).as_ref()).unwrap();
+
 
             let pvk = prepare_verifying_key(&params.vk);
             for (proof, input) in &proofs {
@@ -171,14 +177,29 @@ fn run(config: RunConfig) {
             }
 
             let mut output_file = File::create(output_file).unwrap();
+            let mut avg_first_proof_time = 0;
+            let mut avg_additional_proof_time: u128 = 0;
+
             for trial_times in times {
                 output_file.write_all(format!("{}\n", trial_times.0).as_ref()).unwrap();
+                avg_first_proof_time += trial_times.0;
+                avg_first_proof_time += trial_times.1[0];
+
 
                 for (i, time) in trial_times.1.iter().enumerate() {
+                    if i != 0 {
+                        avg_additional_proof_time += *time;
+                    }
+
                     let end = if i == (trial_times.1.len() - 1) {"\n"} else {", "};
                     output_file.write_all(format!("{}{}", time, end).as_ref()).unwrap();
                 }
             }
+
+            let avg_first_proof_time = avg_first_proof_time as f64 / trials as f64;
+            output_file.write_all(format!("first proof time: {}\n", avg_first_proof_time).as_ref()).unwrap();
+            let avg_additional_proof_time = avg_additional_proof_time as f64 / ((num_batch - 1) as f64 * (trials) as f64);
+            output_file.write_all(format!("additional proof time: {}", avg_additional_proof_time).as_ref()).unwrap();
 
             let pvk = prepare_verifying_key(&params.vk);
             for (proof, input) in &proofs {

@@ -78,6 +78,9 @@ fn run(config: RunConfig) {
 
             return;
         }
+        RunMode::OutputCircuitInfo => {
+            run_notification(&config, &constants);
+        }
         RunMode::Sample(params_file) => {
             run_notification(&config, &constants);
 

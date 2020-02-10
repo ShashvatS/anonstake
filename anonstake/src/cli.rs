@@ -19,6 +19,7 @@ pub enum CLIError {
 #[derive(Clone)]
 pub enum RunMode {
     OnlyGenParams(PathBuf),
+    OutputCircuitInfo,
     Sample(PathBuf),
     Single(PathBuf, PathBuf, u32),
     Batch(PathBuf, PathBuf, u32, u32),
@@ -69,6 +70,8 @@ pub fn get_run_config() -> Result<Vec<RunConfig>, CLIError> {
 
     if let Some(_) = matches.subcommand_matches("gen_params") {
         return get_params_gen();
+    } else if let Some(_) = matches.subcommand_matches("circuit_info") {
+        return get_circuit_info();
     } else {
         let gen_params = get_params_gen()?;
         if gen_params.len() != 0 {
@@ -143,6 +146,34 @@ pub fn get_params_gen() -> Result<Vec<RunConfig>, CLIError> {
     Ok(configs)
 }
 
+pub fn get_circuit_info() -> Result<Vec<RunConfig>, CLIError> {
+    let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
+
+    let mut configs = vec![];
+
+    for i in 0..4 {
+        for use_poseidon in vec![true, false] {
+            let tau = (&tau_vals[i]).clone();
+            let is_bp: bool = i == 0;
+
+            let merkle_height = if use_poseidon { 10 } else { 29 };
+
+            configs.push(RunConfig {
+                tau,
+                is_bp,
+                merkle_height,
+                test_constraint_system: true,
+                check_params: false,
+                mode: RunMode::OutputCircuitInfo,
+                use_poseidon,
+            });
+        }
+    }
+
+    Ok(configs)
+}
+
+
 pub fn sample_all_proofs() -> Result<Vec<RunConfig>, CLIError> {
     let tau_vals = [Tau20, Tau1500, Tau2990, Tau5000];
     let is_bp = ["_block_proposer", "", "", ""];
@@ -193,19 +224,20 @@ pub fn sample_all_proofs() -> Result<Vec<RunConfig>, CLIError> {
 
 pub fn read_command_line_params(matches: ArgMatches) -> Result<Vec<RunConfig>, CLIError> {
     let is_batch;
-    let single_batch;
 
-    if let Some(_) = matches.subcommand_matches("single") {
-        single_batch = "single";
-        is_batch = false;
-    }
-    else if let Some(_) = matches.subcommand_matches("batch") {
-        single_batch = "batch";
-        is_batch = true;
-    }
-    else {
-        return Ok(vec![]);
-    }
+    let single_batch = {
+        if let Some(_) = matches.subcommand_matches("single") {
+            is_batch = false;
+            "single"
+        }
+        else if let Some(_) = matches.subcommand_matches("batch") {
+            is_batch = true;
+            "batch"
+        }
+        else {
+            return Ok(vec![]);
+        }
+    };
 
     if let Some(matches) = matches.subcommand_matches(single_batch) {
         let (tau, is_bp, use_poseidon) = {

@@ -4,11 +4,15 @@ author: omitted <@gmail.com>
 about: creates and benchmarks anonstake proofs
 subcommands:
   - test:
-      about: create and verify an anonymous soritition proofs for each role
+      about: create and verify an anonymous sortition proofs for each role
       version: "1.0"
       author: omitted <@gmail.com>
   - gen_params:
       about: generates zk-snark parameters for each possible circuit
+      version: "1.0"
+      author: omitted <@gmail.com>
+  - circuit_info:
+      about: print circuit info (number of constraints, number aux inputs, and number pub inputs)
       version: "1.0"
       author: omitted <@gmail.com>
   - single:

@@ -31,6 +31,10 @@ path = "src/generate_random_constants.rs"
 
 [[bin]]
 name = "keyerasure"
+path = "src/badforwardsecuretree.rs"
+
+[[bin]]
+name = "forwardsecure"
 path = "src/forwardsecuretree.rs"
 
 [features]

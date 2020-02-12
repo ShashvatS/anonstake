@@ -265,13 +265,6 @@ where B: ForwardSecureSignatureScheme {
         let b = t / B::time_limit();
 
         if a != b {
-//            let mut r_p = [0; 32];
-//            for _ in (last_update / B::time_limit())..(t/B::time_limit()) {
-//                r_p = sha256_hash(&r, &[Self::depth(), 0]);
-//                r = sha256_hash(&r, &[Self::depth(), 1]);
-//            }
-
-
             let r_p = sha256_hash(&r, &[Self::depth(), 0]);
             r = sha256_hash(&r, &[Self::depth(), 1]);
 

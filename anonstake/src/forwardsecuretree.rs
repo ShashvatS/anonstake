@@ -38,7 +38,6 @@ pub trait ForwardSecureSignatureScheme {
 
     fn clone_sk(sk: &Self::SK) -> Self::SK;
     fn clone_sig(sig: &Self::Sig) -> Self::Sig;
-
 }
 
 fn sha256_hash(a: &[u8], b: &[u8]) -> [u8; 32] {
@@ -61,8 +60,6 @@ fn mod_merkle_hash(input: &[u8], m: &<Bls12 as ScalarEngine>::Fr) -> <<Bls12 as 
     let mut a = <Field as PrimeField>::Repr::from(0);
     a.read_be(Cursor::new(input)).unwrap();
     let b = m.into_repr();
-
-//    println!("debug: {} {} {}", a, b, merkle_hash(0, &a, &b));
 
     return merkle_hash(0, &a, &b);
 }
@@ -326,7 +323,6 @@ where B: ForwardSecureSignatureScheme {
     }
 }
 
-
 fn main() {
     let rng = &mut thread_rng();
     let constants = PoseidonConstants::<Bls12>::get();
@@ -344,7 +340,7 @@ fn main() {
     println!("key gen time ==> since last time: {} | total time since start {}", now.elapsed().as_millis(), start.elapsed().as_millis());
     now = Instant::now();
 
-    let times = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 20, 30, 45, 63, 1 << 9, (1 << 9) + 15, (1 << 9) + 26 + 14, (1 << 15) + 352, (1 << 30) + 368732535, (1 << 36) - 1, (1 << 36)];
+    let times = vec![1, 2, 5, 6, 9, 10, 11, 15, 20, 30, 45, 63, 1 << 9, (1 << 9) + 15, (1 << 9) + 26 + 14, (1 << 15) + 352, (1 << 30) + 368732535, (1 << 36) - 1, (1 << 36)];
     let mut t: usize = 0;
 
     let original = sk.2.clone();

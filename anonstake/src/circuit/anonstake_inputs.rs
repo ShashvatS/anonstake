@@ -34,6 +34,7 @@ pub struct AuxInput<E: JubjubEngine> {
     pub fs_merkle_path: Vec<Option<(E::Fr, bool)>>,
     pub fs_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
     pub coin: Coin<E>,
+    pub a_sk: Option<E::Fr>,
     pub fs_sk: Option<E::Fr>,
     pub sn_less_diff: Option<E::Fr>,
     pub sn_plus_diff: Option<E::Fr>,
@@ -98,6 +99,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     rho: None,
                     s: None,
                 },
+                a_sk: None,
                 fs_sk: None,
                 sn_less_diff: None,
                 sn_plus_diff: None,
@@ -173,6 +175,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     rho: Some(E::Fr::random(rng)),
                     s: Some(E::Fs::random(rng)),
                 },
+                a_sk: Some(E::Fr::random(rng)),
                 fs_sk: Some(E::Fr::random(rng)),
                 sn_less_diff: Some(E::Fr::random(rng)),
                 sn_plus_diff: Some(E::Fr::random(rng)),
@@ -222,10 +225,6 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             fs_poseidon_path.push(Some((a, t)));
         }
 
-        for _ in 0..merkle_height {
-
-        }
-
         AnonStake {
             constants: &constants,
             is_bp,
@@ -251,6 +250,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     rho: Some(E::Fr::random(rng)),
                     s: Some(E::Fs::random(rng)),
                 },
+                a_sk: Some(E::Fr::random(rng)),
                 fs_sk: Some(E::Fr::random(rng)),
                 sn_less_diff: Some(E::Fr::one()),
                 sn_plus_diff: Some(E::Fr::one()),

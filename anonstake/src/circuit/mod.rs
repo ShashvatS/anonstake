@@ -5,7 +5,7 @@ use ff::{Field, PrimeField};
 pub mod anonstake_inputs;
 
 use anonstake_inputs::*;
-use bellman::gadgets::num::{AllocatedNum};
+use bellman::gadgets::num::{AllocatedNum, Num};
 use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::{num, boolean};
 
@@ -24,21 +24,29 @@ pub struct  AnonStake<'a, E: JubjubEngine> {
 
 impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
     fn synthesize<CS: ConstraintSystem<E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
-        let (a_sk, _role, role_bits) = self.forward_security(cs.namespace(|| "forward security"), "forward security")?;
+        let a_sk = AllocatedNum::alloc(cs.namespace(|| "a_sk"), || self.aux_input.a_sk.ok_or(SynthesisError::AssignmentMissing))?;
 
         //kind of hacky but whatever, do not have enough time
         let allocated_zero = AllocatedNum::alloc(cs.namespace(|| "allocate fake zero"), || Ok(E::Fr::zero()))?;
 
         let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk.clone(), allocated_zero, &self.constants.mimc.prf_addr)?;
 
-        let (cm, _value, value_bits, rho) = self.constrain_coin_commitment(cs.namespace(|| "coin commitment computation"), "coin commitment computation", a_pk)?;
+        let (_role, role_bits, fs_start_bits, fs_pk) = self.forward_secure_tree(cs.namespace(|| "forward secure tree"), "forward secure tree")?;
 
+        let (rho, pack) = self.constrain_packed_values(
+            cs.namespace(|| "constrain packed values"),
+            "constrain packed values", fs_start_bits, fs_pk)?;
+
+        let (cm, _value, value_bits) = self.constrain_coin_commitment(
+            cs.namespace(|| "coin commitment computation"),
+            "coin commitment computation", a_pk, pack)?;
         self.coin_commitment_membership(cs.namespace(|| "coin commitment membership"), "coin commitment membership", cm)?;
 
         let seed_sel = AllocatedNum::alloc(cs.namespace(|| "allocate seed_sel"), || self.pub_input.seed.ok_or(SynthesisError::AssignmentMissing))?;
         seed_sel.inputize(cs.namespace(|| "inputize seed_sel"))?;
 
         let seed_sel_bits = seed_sel.to_bits_le_strict(cs.namespace(|| "bits of seed_sel"))?;
+
 
         let hash_role_seed = {
             let mut a = role_bits.clone();

@@ -9,7 +9,8 @@ pub struct PubInput<E: JubjubEngine> {
     //    pub root_cm: Option<E::Fr>,
 //    pub root_sn: Option<E::Fr>,
 //    pub tsn: Option<E::Fr>,
-    pub role: Option<E::Fr>,
+//    pub role: Option<E::Fr>,
+    pub role: Option<u64>,
     pub seed: Option<E::Fr>,
     pub h: Option<E::Fr>,
 //    pub h_sig: Option<E::Fr>
@@ -36,6 +37,7 @@ pub struct AuxInput<E: JubjubEngine> {
     pub coin: Coin<E>,
     pub a_sk: Option<E::Fr>,
     pub fs_sk: Option<E::Fr>,
+    pub fs_tree_start: Option<u64>,
     pub sn_less_diff: Option<E::Fr>,
     pub sn_plus_diff: Option<E::Fr>,
     pub j_i: Option<u64>,
@@ -101,6 +103,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 },
                 a_sk: None,
                 fs_sk: None,
+                fs_tree_start: None,
                 sn_less_diff: None,
                 sn_plus_diff: None,
                 j_i: None,
@@ -149,6 +152,14 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             fs_poseidon_path.push(Some((a, t)));
         }
 
+        let mut role = rng.gen();
+        let mut fs_tree_start = rng.gen();
+        if role < fs_tree_start {
+            let tmp = fs_tree_start;
+            fs_tree_start = role;
+            role = tmp;
+        }
+
         AnonStake {
             constants: &constants,
             is_bp,
@@ -157,7 +168,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 //                root_cm: Some(E::Fr::random(rng)),
 //                root_sn: Some(E::Fr::random(rng)),
 //                tsn: Some(E::Fr::random(rng)),
-                role: Some(E::Fr::random(rng)),
+                role: Some(role),
                 seed: Some(E::Fr::random(rng)),
                 h: Some(E::Fr::random(rng)),
 //                h_sig: Some(E::Fr::random(rng)),
@@ -177,6 +188,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 },
                 a_sk: Some(E::Fr::random(rng)),
                 fs_sk: Some(E::Fr::random(rng)),
+                fs_tree_start: Some(fs_tree_start),
                 sn_less_diff: Some(E::Fr::random(rng)),
                 sn_plus_diff: Some(E::Fr::random(rng)),
                 j_i: Some(1),
@@ -225,6 +237,9 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
             fs_poseidon_path.push(Some((a, t)));
         }
 
+        let role = rng.gen();
+        let fs_tree_start = role - (rng.gen::<u64>() % (1 << 36));
+
         AnonStake {
             constants: &constants,
             is_bp,
@@ -233,7 +248,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 //                root_cm: Some(E::Fr::random(rng)),
 //                root_sn: Some(E::Fr::random(rng)),
 //                tsn: Some(E::Fr::random(rng)),
-                role: Some(E::Fr::random(rng)),
+                role: Some(role),
                 seed: Some(E::Fr::random(rng)),
                 h: Some(E::Fr::random(rng)),
 //                h_sig: Some(E::Fr::random(rng)),
@@ -252,6 +267,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 },
                 a_sk: Some(E::Fr::random(rng)),
                 fs_sk: Some(E::Fr::random(rng)),
+                fs_tree_start: Some(fs_tree_start),
                 sn_less_diff: Some(E::Fr::one()),
                 sn_plus_diff: Some(E::Fr::one()),
                 j_i: Some(j_i),

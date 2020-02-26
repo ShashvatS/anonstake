@@ -29,9 +29,10 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         //kind of hacky but whatever, do not have enough time
         let allocated_zero = AllocatedNum::alloc(cs.namespace(|| "allocate fake zero"), || Ok(E::Fr::zero()))?;
 
-        let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk.clone(), allocated_zero, &self.constants.mimc.prf_addr)?;
+        let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk.clone(), allocated_zero.clone(), &self.constants.mimc.prf_addr)?;
 
-        let (_role, role_bits, fs_start_bits, fs_pk) = self.forward_secure_tree(cs.namespace(|| "forward secure tree"), "forward secure tree")?;
+        let (_role, role_bits, fs_start_bits, fs_pk) = self.forward_secure_tree(
+            cs.namespace(|| "forward secure tree"), "forward secure tree", allocated_zero)?;
 
         let (rho, pack) = self.constrain_packed_values(
             cs.namespace(|| "constrain packed values"),

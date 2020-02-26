@@ -103,6 +103,47 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok(state[0].clone())
     }
 
+    pub fn crh_poseidon_or_pedersen_elem_with_zero<CS>(&self, mut cs: CS, namespace: &str, num: AllocatedNum<E>) -> Result<AllocatedNum<E>, SynthesisError>
+        where CS: ConstraintSystem<E> {
+        if self.use_poseidon {
+            let num: Num<E> = num.into();
+            let result = self.poseidon(
+                cs.namespace(|| format!("{} poseidon", namespace)),
+                &format!("{} poseidon", namespace),
+                [num, Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()],
+            )?;
+
+            return AllocatedNum::alloc(cs.namespace(|| format!("{} allocate result", namespace)),
+                                       || result.get_value().ok_or(SynthesisError::AssignmentMissing));
+        } else {
+            let bits = num.to_bits_le_strict(
+                cs.namespace(|| format!("{} to bits", namespace)))?;
+            return self.crh(cs, namespace, bits.as_slice());
+        }
+    }
+
+    pub fn crh_poseidon_or_pedersen_elems<CS>(&self, mut cs: CS, namespace: &str, num1: AllocatedNum<E>, num2: AllocatedNum<E>) -> Result<AllocatedNum<E>, SynthesisError>
+        where CS: ConstraintSystem<E> {
+        if self.use_poseidon {
+            let num1: Num<E> = num1.into();
+            let num2: Num<E> = num2.into();
+            let result = self.poseidon(
+                cs.namespace(|| format!("{} poseidon", namespace)),
+                &format!("{} poseidon", namespace),
+                [num1, num2, Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()],
+            )?;
+
+            return AllocatedNum::alloc(
+                cs.namespace(|| format!("{} allocate result", namespace)),
+                || result.get_value().ok_or(SynthesisError::AssignmentMissing));
+        } else {
+            let mut bits = num1.to_bits_le_strict(
+                cs.namespace(|| format!("{} to bits", namespace)))?;
+            bits.extend(num2.to_bits_le_strict(
+                cs.namespace(|| format!("{} to bits 2", namespace)))?);
+            return self.crh(cs, namespace, bits.as_slice());
+        }
+    }
 
     pub fn get_role_bits<CS>(&self, mut cs: CS, namespace: &str) -> Result<(AllocatedNum<E>, Vec<Boolean>), SynthesisError>
         where CS: ConstraintSystem<E> {
@@ -175,7 +216,6 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             self.constants.jubjub,
         )?;
 
-
         {
             // Booleanize the randomness for the note commitment
             let rcm = boolean::field_into_boolean_vec_le(
@@ -199,7 +239,6 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                 self.constants.jubjub,
             )?;
         }
-
 
         Ok((cm, value_num, value_bits))
     }
@@ -636,10 +675,166 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         }
     }
 
-    //    pub fn forward_secure_tree_main<CS>(&self, mut cs: CS, namespace: &str) -> Result<AllocatedNum<E>, SynthesisError::AssignmentMissing>
-//    {}
-//
-    pub fn forward_secure_tree<CS>(&self, mut cs: CS, namespace: &str) -> Result<(AllocatedNum<E>, Vec<Boolean>, Vec<Boolean>, AllocatedNum<E>), SynthesisError>
+    pub fn forward_secure_tree_main<CS>(&self, mut cs: CS, namespace: &str, time: AllocatedNum<E>, zero: AllocatedNum<E>) -> Result<AllocatedNum<E>, SynthesisError>
+        where CS: ConstraintSystem<E> {
+        let time_bits: Vec<Boolean> = {
+            let tmp = if let (Some(a), Some(b)) = (self.pub_input.role, self.aux_input.fs_tree_start) {
+                Some(a - b)
+            } else {
+                None
+            };
+
+            let mut bits = boolean::u64_into_boolean_vec_le(
+                cs.namespace(|| format!("{} get time diff bits", namespace)), tmp)?;
+            bits.truncate(36);
+            bits
+        };
+
+        {
+            let mut time_num = num::Num::<E>::zero();
+
+            let mut coeff = E::Fr::one();
+            for bit in &time_bits {
+                time_num = time_num.add_bool_with_coeff(CS::one(), bit, coeff);
+                coeff.double();
+            }
+
+            cs.enforce(|| format!("{} enforce time valid", namespace),
+                       |_| time_num.lc(E::Fr::one()),
+                       |lc| lc + CS::one(),
+                       |lc| lc + time.get_variable());
+        }
+
+        let mut tree_sks = vec![];
+        let mut final_pks = vec![];
+
+        for i in 0..4 {
+            let bits = &time_bits[9 * i..9 * (i + 1)];
+
+            let tree_sk = AllocatedNum::alloc(
+                cs.namespace(|| format!("{} calulate first sk {}", namespace, i)),
+                || self.aux_input.fs_sk[i].ok_or(SynthesisError::AssignmentMissing))?;
+
+            let tree_pk = self.crh_poseidon_or_pedersen_elem_with_zero(
+                cs.namespace(|| format!("{} calulate first pk {}", namespace, i)),
+                &format!("{} calulate first pk {}", namespace, i),
+                tree_sk.clone(),
+            )?;
+
+            tree_sks.push(tree_sk);
+
+            let mut cur_value = tree_pk.clone();
+
+            for j in 0..3 {
+                let tmp = (&bits[3 * j].get_value(), &bits[3 * j + 1].get_value(), &bits[3 * j + 2].get_value());
+
+                let idx: Option<u64> = if let (Some(a), Some(b), Some(c)) = tmp
+                {
+                    Some(1 * (*a as u64) + 2 * (*b as u64) + 4 * (*c as u64))
+                } else {
+                    None
+                };
+
+                let mut cur_path: Vec<AllocatedNum<E>> = vec![];
+                for k in 0..8 {
+                    let mut added = false;
+                    if let Some(check) = idx {
+                        if check == k {
+                            cur_path.push(
+                                cur_value.clone()
+                            );
+                            added = true;
+                        }
+                    }
+
+                    if !added {
+                        cur_path.push(
+                            AllocatedNum::alloc(
+                                cs.namespace(|| format!("{} allocate cur path {} {} {}", namespace, i, j, k)),
+                                || self.aux_input.fs_main_tree[i][j][k as usize].clone().ok_or(SynthesisError::AssignmentMissing),
+                            )?
+                        );
+                    }
+                }
+
+                //TODO: add check that constrains cur_value to cur_path[idx] or something ya
+
+                if self.use_poseidon {
+                    let t: [Num<E>; 8] = [cur_path[0].clone().into(), cur_path[1].clone().into(), cur_path[2].clone().into(), cur_path[3].clone().into(), cur_path[4].clone().into(), cur_path[5].clone().into(), cur_path[6].clone().into(), cur_path[7].clone().into()];
+
+                    let result = self.poseidon(
+                        cs.namespace(|| format!("{} tree hash {} {}", namespace, i, j)),
+                        &format!("{} hash {} {}", namespace, i, j),
+                        t)?;
+
+                    cur_value = AllocatedNum::alloc(
+                        cs.namespace(|| format!("{} allocate result {} {}", namespace, i, j)),
+                        || result.get_value().ok_or(SynthesisError::AssignmentMissing))?;
+                } else {
+                    //really should use for loops...
+
+                    let t0 = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 0),
+                        cur_path[0].clone(),
+                        cur_path[1].clone(),
+                    )?;
+
+                    let t1 = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 1),
+                        cur_path[2].clone(),
+                        cur_path[3].clone(),
+                    )?;
+
+                    let t2 = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 2),
+                        cur_path[4].clone(),
+                        cur_path[5].clone(),
+                    )?;
+
+                    let t3 = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 3),
+                        cur_path[6].clone(),
+                        cur_path[7].clone(),
+                    )?;
+
+                    let t4 = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 4),
+                        t0, t1)?;
+
+                    let t5 = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 5),
+                        t2, t3)?;
+
+                    cur_value = self.crh_poseidon_or_pedersen_elems(
+                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+                        &format!("{} tree hash {} {} {}", namespace, i, j, 6),
+                        t4, t5)?;
+                }
+
+                final_pks.push(cur_value.clone());
+            }
+        }
+
+        for i in 0..3 {
+            let sk = tree_sks[i].clone();
+            let message = final_pks[i + 1].clone();
+            self.crh_poseidon_or_pedersen_elems(
+                cs.namespace(|| format!("{} last sig {}", namespace, i)),
+                &format!("{} last sig {}", namespace, i),
+                sk, message)?;
+        }
+
+        Ok(zero)
+    }
+
+
+    pub fn forward_secure_tree<CS>(&self, mut cs: CS, namespace: &str, zero: AllocatedNum<E>) -> Result<(AllocatedNum<E>, Vec<Boolean>, Vec<Boolean>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E> {
         let (role, role_bits) = self.get_role_bits(
             cs.namespace(|| format!("{} get role", namespace)),
@@ -671,16 +866,18 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                                 })?
         };
 
-        let fs_pk = time_diff.clone();
-
+        let fs_pk = self.forward_secure_tree_main(
+            cs.namespace(|| format!("{} main forward secure tree", namespace)),
+            &format!("{} main forward secure tree", namespace),
+            time_diff, zero)?;
 
         Ok((role, role_bits, fs_start_bits, fs_pk))
     }
 
 
     //input: already allocated
-    //sk: already allocated
-    //output
+//sk: already allocated
+//output
     pub fn mimc_round<CS>(&self, mut cs: CS, namespace: &str, sk: &AllocatedNum<E>, input: AllocatedNum<E>, round_constant: E::Fr, cur_round: usize) -> Result<AllocatedNum<E>, SynthesisError>
         where CS: ConstraintSystem<E>
     {

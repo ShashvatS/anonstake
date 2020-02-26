@@ -111,7 +111,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         // Booleanize the value into little-endian bit order
         let role_bits = boolean::u64_into_boolean_vec_le(
             cs.namespace(|| namespace.to_owned() + "value"),
-            self.aux_input.coin.value,
+            self.pub_input.role,
         )?;
 
         {
@@ -122,7 +122,8 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             }
         }
 
-        let role = AllocatedNum::alloc(cs.namespace(|| namespace.to_owned() + "allocate role"), || role_num.get_value().ok_or(SynthesisError::AssignmentMissing))?;
+        let role = AllocatedNum::alloc(cs.namespace(|| namespace.to_owned() + "allocate role"),
+                                       || role_num.get_value().ok_or(SynthesisError::AssignmentMissing))?;
         role.inputize(cs.namespace(|| namespace.to_owned() + "inputize role"))?;
 
         Ok((role, role_bits))
@@ -149,6 +150,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             // Compute the note's value as a linear combination
             // of the bits.
             let mut coeff = E::Fr::one();
+
             for bit in &value_bits {
                 value_num = value_num.add_bool_with_coeff(CS::one(), bit, coeff);
                 coeff.double();
@@ -204,8 +206,8 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
 
     pub fn constrain_packed_values<CS>(&self, mut cs: CS, namespace: &str, fs_start_bits: Vec<Boolean>, fs_pk: AllocatedNum<E>) -> Result<(AllocatedNum<E>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E> {
-
-        let rho_alloc = AllocatedNum::alloc(cs.namespace(|| "cs alloc"), || self.aux_input.coin.rho.ok_or(SynthesisError::AssignmentMissing))?;
+        let rho_alloc = AllocatedNum::alloc(cs.namespace(|| "cs alloc"),
+                                            || self.aux_input.coin.rho.ok_or(SynthesisError::AssignmentMissing))?;
         let rho_bits = rho_alloc.to_bits_le(cs.namespace(|| "rho bits"))?;
 
         let fs_pk_bits = fs_pk.to_bits_le(cs.namespace(|| "fs_pk_bits"))?;
@@ -634,7 +636,9 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         }
     }
 
-
+    //    pub fn forward_secure_tree_main<CS>(&self, mut cs: CS, namespace: &str) -> Result<AllocatedNum<E>, SynthesisError::AssignmentMissing>
+//    {}
+//
     pub fn forward_secure_tree<CS>(&self, mut cs: CS, namespace: &str) -> Result<(AllocatedNum<E>, Vec<Boolean>, Vec<Boolean>, AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E> {
         let (role, role_bits) = self.get_role_bits(
@@ -663,7 +667,8 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                                 || {
                                     let mut value = role.get_value().ok_or(SynthesisError::AssignmentMissing)?;
                                     value.sub_assign(&num.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-                                    Ok(value) })?
+                                    Ok(value)
+                                })?
         };
 
         let fs_pk = time_diff.clone();

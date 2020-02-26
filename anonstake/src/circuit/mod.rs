@@ -5,9 +5,9 @@ use ff::{Field, PrimeField};
 pub mod anonstake_inputs;
 
 use anonstake_inputs::*;
-use bellman::gadgets::num::{AllocatedNum, Num};
 use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::{num, boolean};
+use bellman::gadgets::num::{AllocatedNum};
 
 pub mod gadgets;
 
@@ -46,7 +46,6 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         seed_sel.inputize(cs.namespace(|| "inputize seed_sel"))?;
 
         let seed_sel_bits = seed_sel.to_bits_le_strict(cs.namespace(|| "bits of seed_sel"))?;
-
 
         let hash_role_seed = {
             let mut a = role_bits.clone();

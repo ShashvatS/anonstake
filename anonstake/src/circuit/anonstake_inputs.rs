@@ -18,7 +18,7 @@ pub struct PubInput<E: JubjubEngine> {
 
 #[derive(Clone)]
 pub struct Coin<E: JubjubEngine> {
-//    pub a_pk: Option<E::Fr>,
+    //    pub a_pk: Option<E::Fr>,
     pub value: Option<u64>,
     pub rho: Option<E::Fr>,
     pub s: Option<E::Fs>,
@@ -32,11 +32,10 @@ pub struct AuxInput<E: JubjubEngine> {
     pub sn_merkle_path: Vec<Option<(E::Fr, bool)>>,
     pub cm_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
     pub sn_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
-    pub fs_merkle_path: Vec<Option<(E::Fr, bool)>>,
-    pub fs_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
+    pub fs_main_tree: [[[Option<E::Fr>; 8]; 3]; 4],
+    pub fs_sk: [Option<E::Fr>; 4],
     pub coin: Coin<E>,
     pub a_sk: Option<E::Fr>,
-    pub fs_sk: Option<E::Fr>,
     pub fs_tree_start: Option<u64>,
     pub sn_less_diff: Option<E::Fr>,
     pub sn_plus_diff: Option<E::Fr>,
@@ -58,22 +57,17 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
     pub fn init_empty(constants: &'a Constants<E>, is_bp: bool, merkle_height: usize, use_poseidon: bool) -> AnonStake<'a, E> {
         let mut cm_merkle_path = vec![];
         let mut sn_merkle_path = vec![];
-        let mut fs_merkle_path = vec![];
         for _i in 0..merkle_height {
             cm_merkle_path.push(None);
             sn_merkle_path.push(None);
-            fs_merkle_path.push(None);
         }
 
         let mut cm_poseidon_path = vec![];
         let mut sn_poseidon_path = vec![];
-        let mut fs_poseidon_path = vec![];
         for _ in 0..merkle_height {
             cm_poseidon_path.push(None);
             sn_poseidon_path.push(None);
-            fs_poseidon_path.push(None);
         }
-
 
         AnonStake {
             constants: &constants,
@@ -93,8 +87,8 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 sn_merkle_path,
                 cm_poseidon_path,
                 sn_poseidon_path,
-                fs_merkle_path,
-                fs_poseidon_path,
+                fs_main_tree: [[[None; 8]; 3]; 4],
+                fs_sk: [None; 4],
                 coin: Coin {
 //                    a_pk: None,
                     value: None,
@@ -102,7 +96,6 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     s: None,
                 },
                 a_sk: None,
-                fs_sk: None,
                 fs_tree_start: None,
                 sn_less_diff: None,
                 sn_plus_diff: None,
@@ -122,19 +115,17 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 
         let mut cm_merkle_path = vec![];
         let mut sn_merkle_path = vec![];
-        let mut fs_merkle_path = vec![];
+
         for _i in 0..merkle_height {
             let val = (E::Fr::random(rng), rng.gen());
             cm_merkle_path.push(Some(val));
             let val = (E::Fr::random(rng), rng.gen());
             sn_merkle_path.push(Some(val));
-            let val = (E::Fr::random(rng), rng.gen());
-            fs_merkle_path.push(Some(val));
         }
 
         let mut cm_poseidon_path = vec![];
         let mut sn_poseidon_path = vec![];
-        let mut fs_poseidon_path = vec![];
+
         for _ in 0..merkle_height {
             let t: u8 = rng.gen::<u8>() % 8;
 
@@ -145,20 +136,20 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 
             let a = [E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng)];
             sn_poseidon_path.push(Some((a, t)));
-
-            let t: u8 = rng.gen::<u8>() % 8;
-
-            let a = [E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng)];
-            fs_poseidon_path.push(Some((a, t)));
         }
 
-        let mut role = rng.gen();
-        let mut fs_tree_start = rng.gen();
-        if role < fs_tree_start {
-            let tmp = fs_tree_start;
-            fs_tree_start = role;
-            role = tmp;
-        }
+        let fs_main_tree = {
+            let mut fs_main_tree = [[[None; 8]; 3]; 4];
+            for i in 0..8 {
+                for j in 0..3 {
+                    for k in 0..4 {
+                        fs_main_tree[k][j][i] = Some(E::Fr::random(rng));
+                    }
+                }
+            }
+
+            fs_main_tree
+        };
 
         AnonStake {
             constants: &constants,
@@ -168,7 +159,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 //                root_cm: Some(E::Fr::random(rng)),
 //                root_sn: Some(E::Fr::random(rng)),
 //                tsn: Some(E::Fr::random(rng)),
-                role: Some(role),
+                role: Some(rng.gen()),
                 seed: Some(E::Fr::random(rng)),
                 h: Some(E::Fr::random(rng)),
 //                h_sig: Some(E::Fr::random(rng)),
@@ -178,8 +169,8 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 sn_merkle_path,
                 cm_poseidon_path,
                 sn_poseidon_path,
-                fs_merkle_path,
-                fs_poseidon_path,
+                fs_main_tree,
+                fs_sk: [Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng))],
                 coin: Coin {
 //                    a_pk: Some(E::Fr::random(rng)),
                     value: Some(2u64.pow(59)),
@@ -187,8 +178,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                     s: Some(E::Fs::random(rng)),
                 },
                 a_sk: Some(E::Fr::random(rng)),
-                fs_sk: Some(E::Fr::random(rng)),
-                fs_tree_start: Some(fs_tree_start),
+                fs_tree_start: Some(rng.gen()),
                 sn_less_diff: Some(E::Fr::random(rng)),
                 sn_plus_diff: Some(E::Fr::random(rng)),
                 j_i: Some(1),
@@ -207,19 +197,15 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 
         let mut cm_merkle_path = vec![];
         let mut sn_merkle_path = vec![];
-        let mut fs_merkle_path = vec![];
         for _i in 0..merkle_height {
             let val = (E::Fr::random(rng), rng.gen());
             cm_merkle_path.push(Some(val));
             let val = (E::Fr::random(rng), rng.gen());
             sn_merkle_path.push(Some(val));
-            let val = (E::Fr::random(rng), rng.gen());
-            fs_merkle_path.push(Some(val));
         }
 
         let mut cm_poseidon_path = vec![];
         let mut sn_poseidon_path = vec![];
-        let mut fs_poseidon_path = vec![];
         for _ in 0..merkle_height {
             let t: u8 = rng.gen::<u8>() % 8;
 
@@ -230,15 +216,28 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 
             let a = [E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng)];
             sn_poseidon_path.push(Some((a, t)));
-
-            let t: u8 = rng.gen::<u8>() % 8;
-
-            let a = [E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng), E::Fr::random(rng)];
-            fs_poseidon_path.push(Some((a, t)));
         }
 
+        let fs_main_tree = {
+            let mut fs_main_tree = [[[None; 8]; 3]; 4];
+            for i in 0..8 {
+                for j in 0..3 {
+                    for k in 0..4 {
+                        fs_main_tree[k][j][i] = Some(E::Fr::random(rng));
+                    }
+                }
+            }
+
+            fs_main_tree
+        };
+
         let role = rng.gen();
-        let fs_tree_start = role - (rng.gen::<u64>() % (1 << 36));
+        let fs_tree_start = if role < (1 << 36) {
+            rng.gen::<u64>() % role
+        } else {
+            role - (rng.gen::<u64>() % (1 << 36))
+        };
+
 
         AnonStake {
             constants: &constants,
@@ -258,15 +257,14 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 sn_merkle_path,
                 cm_poseidon_path,
                 sn_poseidon_path,
-                fs_merkle_path,
-                fs_poseidon_path,
+                fs_main_tree,
+                fs_sk: [Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng))],
                 coin: Coin {
                     value: Some(2u64.pow(59)),
                     rho: Some(E::Fr::random(rng)),
                     s: Some(E::Fs::random(rng)),
                 },
                 a_sk: Some(E::Fr::random(rng)),
-                fs_sk: Some(E::Fr::random(rng)),
                 fs_tree_start: Some(fs_tree_start),
                 sn_less_diff: Some(E::Fr::one()),
                 sn_plus_diff: Some(E::Fr::one()),

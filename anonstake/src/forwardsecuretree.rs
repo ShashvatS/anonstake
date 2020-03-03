@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::io::{Cursor, BufWriter, Write};
 use std::marker::PhantomData;
 use std::time::Instant;
 
@@ -6,13 +6,12 @@ use rand::{Rng, thread_rng};
 use sha2::{Digest, Sha256};
 
 use constants::poseidon_constants::PoseidonConstants;
-use edwards::Point;
 use ff::{Field, PrimeField, PrimeFieldRepr, ScalarEngine};
 use pairing::bls12_381::Bls12;
 use poseidon::poseidon_hash;
-use zcash_primitives::jubjub::{edwards, FixedGenerators, JubjubBls12, JubjubEngine, JubjubParams, PrimeOrder, ToUniform};
+use zcash_primitives::jubjub::{FixedGenerators, JubjubBls12, JubjubEngine, ToUniform};
 use zcash_primitives::redjubjub;
-use zcash_primitives::sapling::merkle_hash;
+use std::fs::File;
 
 pub mod constants;
 pub mod poseidon;
@@ -23,12 +22,6 @@ pub struct Constants<E: JubjubEngine> {
 }
 
 /*
-technically not a signature scheme because "signatures" reveal secret key
-and only one kind of message can be "signed"
-
-but in a zk-SNARK, we will have access to the secret key anyway
-and only one type of message needs to be "signed" anyway (in this case, message = 0)
-
 scheme: https://cseweb.ucsd.edu/~daniele/papers/MMM.pdf
 */
 pub trait ForwardSecureSignatureScheme {
@@ -45,6 +38,7 @@ pub trait ForwardSecureSignatureScheme {
 
     fn depth() -> u8;
     fn time_limit() -> usize;
+    fn scheme_string() -> String;
 
     fn clone_sk(sk: &Self::SK) -> Self::SK;
     fn clone_sig(sig: &Self::Sig) -> Self::Sig;
@@ -66,30 +60,11 @@ fn sha256_hash(a: &[u8], b: &[u8]) -> [u8; 32] {
     return res;
 }
 
-fn to_field<E: JubjubEngine>(input: &[u8]) -> E::Fs {
-    let mut a = E::Fs::zero().into_repr();
-    println!("failing in to_field?");
-    a.read_be(Cursor::new(input)).unwrap();
-
-    return E::Fs::from_repr(a).unwrap();
-}
-
-fn mod_merkle_hash(input: &[u8], m: &<Bls12 as ScalarEngine>::Fr) -> <<Bls12 as ScalarEngine>::Fr as PrimeField>::Repr {
-    type Field = <Bls12 as ScalarEngine>::Fr;
-
-    let mut a = <Field as PrimeField>::Repr::from(0);
-    a.read_be(Cursor::new(input)).unwrap();
-    let b = m.into_repr();
-
-    return merkle_hash(0, &a, &b);
-}
-
 fn field_to_vec_u8<Fr: PrimeField>(field_elem: &Fr) -> Vec<u8> {
     let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
     field_elem.into_repr().write_be(cursor.get_mut()).unwrap();
     return cursor.into_inner();
 }
-
 
 struct BasicSig<E: JubjubEngine> {
     phantom: PhantomData<E>
@@ -103,6 +78,14 @@ impl<Engine: JubjubEngine + ScalarEngine> ForwardSecureSignatureScheme for Basic
 
     fn depth() -> u8 {
         return 1;
+    }
+
+    fn time_limit() -> usize {
+        return 1;
+    }
+
+    fn scheme_string() -> String {
+        return String::from("BasicScheme");
     }
 
     fn key_gen(constants: &Constants<Self::E>, r: &[u8; 32]) -> (Self::SK, Self::PK) {
@@ -121,19 +104,18 @@ impl<Engine: JubjubEngine + ScalarEngine> ForwardSecureSignatureScheme for Basic
         return (sk, pk);
     }
 
-    //    ignore cases where t >= 1
+//    ignore cases where t >= 1
 //    https://cryptobook.nakov.com/digital-signatures/ecdsa-sign-verify-messages
     fn sign(constants: &Constants<Self::E>, t: usize, sk: &Self::SK, m: &<Self::E as ScalarEngine>::Fr) -> Self::Sig {
         assert_eq!(t, 0);
 
         let m = field_to_vec_u8(m);
         let sig = sk.sign(m.as_slice(), &mut thread_rng(), FixedGenerators::SpendingKeyGenerator, &constants.jubjub);
-        let pk = redjubjub::PublicKey::from_private(&sk, FixedGenerators::SpendingKeyGenerator, &constants.jubjub);
 
         return sig;
     }
 
-    fn update(constants: &Constants<Self::E>, t: usize, sk: Self::SK) -> Self::SK {
+    fn update(_constants: &Constants<Self::E>, t: usize, sk: Self::SK) -> Self::SK {
         if t == 0 {
             return sk;
         } else {
@@ -149,10 +131,6 @@ impl<Engine: JubjubEngine + ScalarEngine> ForwardSecureSignatureScheme for Basic
         let m = field_to_vec_u8(m);
 
         return pk.verify(m.as_slice(), &sig, FixedGenerators::SpendingKeyGenerator, &constants.jubjub);
-    }
-
-    fn time_limit() -> usize {
-        return 1;
     }
 
     fn clone_sk(sk: &Self::SK) -> Self::SK {
@@ -177,7 +155,6 @@ struct SumCompositionEight<B> {
 
 impl<B> SumCompositionEight<B>
     where B: ForwardSecureSignatureScheme {
-
     fn hash_public_keys(constants: &Constants<B::E>, public_keys: &[B::PK; 8]) -> <B::E as ScalarEngine>::Fr {
         let mut public_key_xcoords: [<B::E as ScalarEngine>::Fr; 8] = [<B::E as ScalarEngine>::Fr::zero(); 8];
         for i in 0..8 {
@@ -185,6 +162,13 @@ impl<B> SumCompositionEight<B>
         }
 
         return poseidon_hash(&constants.poseidon, &public_key_xcoords);
+    }
+
+    fn clone_public_keys(public_keys: &[B::PK; 8]) -> [B::PK; 8] {
+        return [B::clone_pk(&public_keys[0]), B::clone_pk(&public_keys[1]),
+        B::clone_pk(&public_keys[2]), B::clone_pk(&public_keys[3]),
+        B::clone_pk(&public_keys[4]), B::clone_pk(&public_keys[5]),
+        B::clone_pk(&public_keys[6]), B::clone_pk(&public_keys[7])];
     }
 }
 
@@ -197,6 +181,14 @@ impl<B> ForwardSecureSignatureScheme for SumCompositionEight<B>
 
     fn depth() -> u8 {
         return B::depth() + 1;
+    }
+
+    fn scheme_string() -> String {
+        return format!("SumCompositionEight<{}>", B::scheme_string());
+    }
+
+    fn time_limit() -> usize {
+        return 8 * B::time_limit();
     }
 
     fn key_gen(constants: &Constants<Self::E>, r: &[u8; 32]) -> (Self::SK, Self::PK)
@@ -259,10 +251,7 @@ impl<B> ForwardSecureSignatureScheme for SumCompositionEight<B>
         where Self::E: JubjubEngine + ScalarEngine {
         let sig = B::sign(constants, t % B::time_limit(), &sk.0, m);
 
-        let public_keys: [B::PK; 8] = [B::clone_pk(&sk.2[0]), B::clone_pk(&sk.2[1]),
-            B::clone_pk(&sk.2[2]), B::clone_pk(&sk.2[3]),
-            B::clone_pk(&sk.2[4]), B::clone_pk(&sk.2[5]),
-            B::clone_pk(&sk.2[6]), B::clone_pk(&sk.2[7])];
+        let public_keys: [B::PK; 8] = Self::clone_public_keys(&sk.2);
 
         return (sig, public_keys);
     }
@@ -277,18 +266,12 @@ impl<B> ForwardSecureSignatureScheme for SumCompositionEight<B>
         return B::verify(constants, &sig.1[i], m, &sig.0, t % B::time_limit());
     }
 
-    fn time_limit() -> usize {
-        return 8 * B::time_limit();
-    }
-
     fn clone_sk(sk: &Self::SK) -> Self::SK {
-        unimplemented!()
-//        return (B::clone_sk(&sk.0), sk.1.clone(), sk.2.clone(), sk.3);
+        return (B::clone_sk(&sk.0), sk.1.clone(), Self::clone_public_keys(&sk.2), sk.3);
     }
 
     fn clone_sig(sig: &Self::Sig) -> Self::Sig {
-        unimplemented!()
-//        return (B::clone_sig(&sig.0), sig.1.clone(), sig.2);
+        return (B::clone_sig(&sig.0), Self::clone_public_keys(&sig.1));
     }
 
     fn pk_to_field(pk: &Self::PK) -> <Self::E as ScalarEngine>::Fr {
@@ -306,7 +289,7 @@ struct MultiplyComposition<B> {
 }
 
 impl<B> ForwardSecureSignatureScheme for MultiplyComposition<B>
-where B: ForwardSecureSignatureScheme {
+    where B: ForwardSecureSignatureScheme {
     type E = B::E;
     type SK = (B::SK, B::Sig, B::SK, B::PK, [u8; 32], usize);
     type Sig = (B::PK, B::Sig, B::Sig);
@@ -314,6 +297,14 @@ where B: ForwardSecureSignatureScheme {
 
     fn depth() -> u8 {
         return B::depth() + 1;
+    }
+
+    fn time_limit() -> usize {
+        return B::time_limit() * B::time_limit();
+    }
+
+    fn scheme_string() -> String {
+        return format!("MultiplyComposition<{}>", B::scheme_string());
     }
 
     fn key_gen(constants: &Constants<Self::E>, r: &[u8; 32]) -> (Self::SK, Self::PK) {
@@ -378,10 +369,6 @@ where B: ForwardSecureSignatureScheme {
         return v_0 && v_1;
     }
 
-    fn time_limit() -> usize {
-        return B::time_limit() * B::time_limit();
-    }
-
     fn clone_sk(sk: &Self::SK) -> Self::SK {
         return (B::clone_sk(&sk.0), B::clone_sig(&sk.1), B::clone_sk(&sk.2), B::clone_pk(&sk.3), sk.4, sk.5);
     }
@@ -391,80 +378,74 @@ where B: ForwardSecureSignatureScheme {
     }
 
     fn clone_pk(pk: &Self::PK) -> Self::PK {
-        unimplemented!()
+        return B::clone_pk(pk);
     }
 
-    fn pk_to_field(pk: &Self::PK) -> <Self::E as ScalarEngine>::Fr  {
+    fn pk_to_field(pk: &Self::PK) -> <Self::E as ScalarEngine>::Fr {
         return B::pk_to_field(&pk);
     }
 }
 
-
-
-fn main() {
+fn main() -> std::io::Result<()> {
     let rng = &mut thread_rng();
+
+    type SigScheme = MultiplyComposition<MultiplyComposition<SumCompositionEight<SumCompositionEight<SumCompositionEight<BasicSig<Bls12>>>>>>;
+//    type SigScheme = MultiplyComposition<SumCompositionEight<SumCompositionEight<SumCompositionEight<SumCompositionEight<SumCompositionEight<SumCompositionEight<BasicSig<Bls12>>>>>>>>;
+    type Field = <<SigScheme as ForwardSecureSignatureScheme>::E as ScalarEngine>::Fr;
 
     let constants = Constants {
         jubjub: JubjubBls12::new(),
-        poseidon: PoseidonConstants::<Bls12>::get(),
+        poseidon: PoseidonConstants::<<SigScheme as ForwardSecureSignatureScheme>::E>::get()
     };
 
-    type SigScheme = BasicSig<Bls12>;
+    let mut file = BufWriter::new(File::create(format!("benchmark_forwardsecuretree_{}.txt", SigScheme::scheme_string()))?);
+    file.write_all(format!("log_2 (time periods) = {}\n", (SigScheme::time_limit() as f64).log2()).as_ref())?;
+    println!("log_2 (time periods) = {}\n", (SigScheme::time_limit() as f64).log2());
+
+    let start = Instant::now();
+    let mut now = Instant::now();
 
     let rand: [u8; 32] = rng.gen();
     let (mut sk, pk) = SigScheme::key_gen(&constants, &rand);
-    let sig = SigScheme::sign(&constants, 0, &sk, &<Bls12 as ScalarEngine>::Fr::zero());
-    let result = SigScheme::verify(&constants, &pk, &<Bls12 as ScalarEngine>::Fr::zero(), &sig, 0);
 
-    println!("result: {}", result);
+    file.write_all(format!("key gen time ==> since last time: {} | total time since start {}\n", now.elapsed().as_millis(), start.elapsed().as_millis()).as_ref())?;
+    println!("key gen time ==> since last time: {} | total time since start {}\n", now.elapsed().as_millis(), start.elapsed().as_millis());
+    now = Instant::now();
 
+    let times = vec![1, 2, 5, 6, 9, 10, 11, 15, 20, 30, 45, 63, 1 << 9, (1 << 9) + 15, (1 << 9) + 26 + 14, (1 << 15) + 352, (1 << 30) + 368732535, (1 << 36) - 1, (1 << 36)];
+    let mut t: usize = 0;
 
-//
-//
-//    type SigScheme = MultiplyComposition<MultiplyComposition<SumCompositionEight<SumCompositionEight<SumCompositionEight<BasicSig>>>>>;
-//    type Field = <Bls12 as ScalarEngine>::Fr;
-//    println!("log_2 (time periods) = {}", (SigScheme::time_limit() as f64).log2());
-//
-//    let start = Instant::now();
-//    let mut now = Instant::now();
-//
-//    let rand: [u8; 32] = rng.gen();
-//    let (mut sk, pk) = SigScheme::key_gen(&constants, rand);
-//
-//    println!("key gen time ==> since last time: {} | total time since start {}", now.elapsed().as_millis(), start.elapsed().as_millis());
-//    now = Instant::now();
-//
-//    let times = vec![1, 2, 5, 6, 9, 10, 11, 15, 20, 30, 45, 63, 1 << 9, (1 << 9) + 15, (1 << 9) + 26 + 14, (1 << 15) + 352, (1 << 30) + 368732535, (1 << 36) - 1, (1 << 36)];
-//    let mut t: usize = 0;
-//
-//    let original = sk.2.clone();
-//    for time in times {
-//
-//        println!("compute for time {}", t);
-//        let sig = SigScheme::sign(&constants, t, sk, Field::zero());
-//        println!("sign time ==> since last time: {} | total time since start {}", now.elapsed().as_millis(), start.elapsed().as_millis());
-//        now = Instant::now();
-//
-//        let verify = SigScheme::verify(&constants, pk, Field::zero(), sig, t);
-//
-//        println!("verify result: {}", verify);
-//
-//        if !verify {
-//            break;
-//        }
-//
-//        println!("verify time ==> since last time: {} | total time since start {}", now.elapsed().as_millis(), start.elapsed().as_millis());
-//        now = Instant::now();
-//
-//        t = time;
-//        if t >= SigScheme::time_limit() {
-//            break;
-//        }
-//
-//        sk = SigScheme::update(&constants, t, sk);
-//        println!("update time ==> since last time: {} | total time since start {}", now.elapsed().as_millis(), start.elapsed().as_millis());
-//        now = Instant::now();
-//
-//        println!("\n\n");
-//    }
+    for time in times {
+        file.write_all(format!("compute for time {}\n", t).as_ref())?;
+        let sig = SigScheme::sign(&constants, t, &sk, &Field::zero());
+        file.write_all(format!("sign time ==> since last time: {} | total time since start {}\n", now.elapsed().as_millis(), start.elapsed().as_millis()).as_ref())?;
+        now = Instant::now();
+
+        let verify = SigScheme::verify(&constants, &pk, &Field::zero(), &sig, t);
+
+        file.write_all(format!("verify result: {}\n", verify).as_ref())?;
+
+        if !verify {
+            break;
+        }
+
+        file.write_all(format!("verify time ==> since last time: {} | total time since start {}\n", now.elapsed().as_millis(), start.elapsed().as_millis()).as_ref())?;
+        now = Instant::now();
+
+        t = time;
+        if t >= SigScheme::time_limit() {
+            break;
+        }
+
+        sk = SigScheme::update(&constants, t, sk);
+        file.write_all(format!("update time ==> since last time: {} | total time since start {}\n", now.elapsed().as_millis(), start.elapsed().as_millis()).as_ref())?;
+        now = Instant::now();
+
+        file.write_all(format!("\n\n").as_ref())?;
+    }
+
+    file.write_all(format!("Total time: {}\n", start.elapsed().as_millis()).as_ref())?;
+    println!("Total time: {}", start.elapsed().as_millis());
+
+    Ok(())
 }

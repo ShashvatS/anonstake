@@ -1,0 +1,133 @@
+log_2 (time periods) = 36
+key gen time ==> since last time: 292 | total time since start 292
+compute for time 0
+sign time ==> since last time: 0 | total time since start 292
+verify result: true
+verify time ==> since last time: 3 | total time since start 295
+update time ==> since last time: 0 | total time since start 295
+
+
+compute for time 1
+sign time ==> since last time: 0 | total time since start 296
+verify result: true
+verify time ==> since last time: 4 | total time since start 300
+update time ==> since last time: 0 | total time since start 300
+
+
+compute for time 2
+sign time ==> since last time: 0 | total time since start 300
+verify result: true
+verify time ==> since last time: 3 | total time since start 303
+update time ==> since last time: 0 | total time since start 303
+
+
+compute for time 5
+sign time ==> since last time: 0 | total time since start 304
+verify result: true
+verify time ==> since last time: 3 | total time since start 307
+update time ==> since last time: 0 | total time since start 307
+
+
+compute for time 6
+sign time ==> since last time: 0 | total time since start 307
+verify result: true
+verify time ==> since last time: 3 | total time since start 311
+update time ==> since last time: 1 | total time since start 312
+
+
+compute for time 9
+sign time ==> since last time: 0 | total time since start 312
+verify result: true
+verify time ==> since last time: 3 | total time since start 316
+update time ==> since last time: 0 | total time since start 316
+
+
+compute for time 10
+sign time ==> since last time: 0 | total time since start 316
+verify result: true
+verify time ==> since last time: 3 | total time since start 319
+update time ==> since last time: 0 | total time since start 319
+
+
+compute for time 11
+sign time ==> since last time: 0 | total time since start 320
+verify result: true
+verify time ==> since last time: 3 | total time since start 323
+update time ==> since last time: 0 | total time since start 323
+
+
+compute for time 15
+sign time ==> since last time: 0 | total time since start 323
+verify result: true
+verify time ==> since last time: 3 | total time since start 327
+update time ==> since last time: 1 | total time since start 328
+
+
+compute for time 20
+sign time ==> since last time: 0 | total time since start 328
+verify result: true
+verify time ==> since last time: 3 | total time since start 331
+update time ==> since last time: 1 | total time since start 333
+
+
+compute for time 30
+sign time ==> since last time: 0 | total time since start 333
+verify result: true
+verify time ==> since last time: 3 | total time since start 336
+update time ==> since last time: 1 | total time since start 337
+
+
+compute for time 45
+sign time ==> since last time: 0 | total time since start 338
+verify result: true
+verify time ==> since last time: 3 | total time since start 341
+update time ==> since last time: 1 | total time since start 342
+
+
+compute for time 63
+sign time ==> since last time: 0 | total time since start 342
+verify result: true
+verify time ==> since last time: 3 | total time since start 346
+update time ==> since last time: 72 | total time since start 419
+
+
+compute for time 512
+sign time ==> since last time: 0 | total time since start 419
+verify result: true
+verify time ==> since last time: 3 | total time since start 422
+update time ==> since last time: 1 | total time since start 423
+
+
+compute for time 527
+sign time ==> since last time: 0 | total time since start 423
+verify result: true
+verify time ==> since last time: 3 | total time since start 427
+update time ==> since last time: 1 | total time since start 428
+
+
+compute for time 552
+sign time ==> since last time: 0 | total time since start 428
+verify result: true
+verify time ==> since last time: 3 | total time since start 431
+update time ==> since last time: 91 | total time since start 523
+
+
+compute for time 33120
+sign time ==> since last time: 0 | total time since start 524
+verify result: true
+verify time ==> since last time: 3 | total time since start 527
+update time ==> since last time: 324 | total time since start 852
+
+
+compute for time 1442474359
+sign time ==> since last time: 0 | total time since start 852
+verify result: true
+verify time ==> since last time: 3 | total time since start 855
+update time ==> since last time: 332 | total time since start 1188
+
+
+compute for time 68719476735
+sign time ==> since last time: 0 | total time since start 1188
+verify result: true
+verify time ==> since last time: 3 | total time since start 1191
+Total time: 1191

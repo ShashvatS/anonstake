@@ -1,0 +1,133 @@
+log_2 (time periods) = 36
+key gen time ==> since last time: 80828 | total time since start 80828
+compute for time 0
+sign time ==> since last time: 0 | total time since start 80828
+verify result: true
+verify time ==> since last time: 3 | total time since start 80832
+update time ==> since last time: 0 | total time since start 80832
+
+
+compute for time 1
+sign time ==> since last time: 0 | total time since start 80832
+verify result: true
+verify time ==> since last time: 3 | total time since start 80835
+update time ==> since last time: 0 | total time since start 80835
+
+
+compute for time 2
+sign time ==> since last time: 0 | total time since start 80835
+verify result: true
+verify time ==> since last time: 3 | total time since start 80839
+update time ==> since last time: 0 | total time since start 80839
+
+
+compute for time 5
+sign time ==> since last time: 0 | total time since start 80839
+verify result: true
+verify time ==> since last time: 3 | total time since start 80842
+update time ==> since last time: 0 | total time since start 80842
+
+
+compute for time 6
+sign time ==> since last time: 0 | total time since start 80843
+verify result: true
+verify time ==> since last time: 3 | total time since start 80846
+update time ==> since last time: 1 | total time since start 80847
+
+
+compute for time 9
+sign time ==> since last time: 0 | total time since start 80847
+verify result: true
+verify time ==> since last time: 3 | total time since start 80851
+update time ==> since last time: 0 | total time since start 80851
+
+
+compute for time 10
+sign time ==> since last time: 0 | total time since start 80851
+verify result: true
+verify time ==> since last time: 3 | total time since start 80854
+update time ==> since last time: 0 | total time since start 80854
+
+
+compute for time 11
+sign time ==> since last time: 0 | total time since start 80854
+verify result: true
+verify time ==> since last time: 3 | total time since start 80858
+update time ==> since last time: 0 | total time since start 80858
+
+
+compute for time 15
+sign time ==> since last time: 0 | total time since start 80858
+verify result: true
+verify time ==> since last time: 3 | total time since start 80861
+update time ==> since last time: 1 | total time since start 80863
+
+
+compute for time 20
+sign time ==> since last time: 0 | total time since start 80863
+verify result: true
+verify time ==> since last time: 3 | total time since start 80866
+update time ==> since last time: 1 | total time since start 80868
+
+
+compute for time 30
+sign time ==> since last time: 0 | total time since start 80868
+verify result: true
+verify time ==> since last time: 3 | total time since start 80871
+update time ==> since last time: 1 | total time since start 80872
+
+
+compute for time 45
+sign time ==> since last time: 0 | total time since start 80873
+verify result: true
+verify time ==> since last time: 3 | total time since start 80876
+update time ==> since last time: 1 | total time since start 80877
+
+
+compute for time 63
+sign time ==> since last time: 0 | total time since start 80877
+verify result: true
+verify time ==> since last time: 3 | total time since start 80881
+update time ==> since last time: 83 | total time since start 80965
+
+
+compute for time 512
+sign time ==> since last time: 0 | total time since start 80965
+verify result: true
+verify time ==> since last time: 3 | total time since start 80968
+update time ==> since last time: 1 | total time since start 80969
+
+
+compute for time 527
+sign time ==> since last time: 0 | total time since start 80970
+verify result: true
+verify time ==> since last time: 3 | total time since start 80973
+update time ==> since last time: 1 | total time since start 80974
+
+
+compute for time 552
+sign time ==> since last time: 0 | total time since start 80974
+verify result: true
+verify time ==> since last time: 3 | total time since start 80978
+update time ==> since last time: 5062 | total time since start 86040
+
+
+compute for time 33120
+sign time ==> since last time: 0 | total time since start 86040
+verify result: true
+verify time ==> since last time: 3 | total time since start 86043
+update time ==> since last time: 46388 | total time since start 132431
+
+
+compute for time 1442474359
+sign time ==> since last time: 0 | total time since start 132432
+verify result: true
+verify time ==> since last time: 3 | total time since start 132435
+update time ==> since last time: 51494 | total time since start 183929
+
+
+compute for time 68719476735
+sign time ==> since last time: 0 | total time since start 183929
+verify result: true
+verify time ==> since last time: 2 | total time since start 183932
+Total time: 183932

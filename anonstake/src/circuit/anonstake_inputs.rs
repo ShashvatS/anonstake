@@ -1,8 +1,10 @@
-use zcash_primitives::jubjub::JubjubEngine;
-use crate::constants::Constants;
-use crate::circuit::AnonStake;
-use rand::{thread_rng, Rng};
+use rand::{Rng, thread_rng};
+
 use ff::Field;
+use zcash_primitives::jubjub::{JubjubEngine};
+
+use crate::circuit::AnonStake;
+use crate::constants::Constants;
 
 #[derive(Clone)]
 pub struct PubInput<E: JubjubEngine> {
@@ -12,7 +14,7 @@ pub struct PubInput<E: JubjubEngine> {
 //    pub role: Option<E::Fr>,
     pub role: Option<u64>,
     pub seed: Option<E::Fr>,
-    pub h: Option<E::Fr>,
+    pub h: Option<E::Fr>
 //    pub h_sig: Option<E::Fr>
 }
 
@@ -33,7 +35,8 @@ pub struct AuxInput<E: JubjubEngine> {
     pub cm_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
     pub sn_poseidon_path: Vec<Option<([E::Fr; 8], u8)>>,
     pub fs_main_tree: [[[Option<E::Fr>; 8]; 3]; 4],
-    pub fs_sk: [Option<E::Fr>; 4],
+    pub fs_sk: [Option<E::Fs>; 4],
+    pub fs_rerandomize_public_key: [Option<E::Fs>; 4],
     pub coin: Coin<E>,
     pub a_sk: Option<E::Fr>,
     pub fs_tree_start: Option<u64>,
@@ -89,6 +92,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 sn_poseidon_path,
                 fs_main_tree: [[[None; 8]; 3]; 4],
                 fs_sk: [None; 4],
+                fs_rerandomize_public_key: [None; 4],
                 coin: Coin {
 //                    a_pk: None,
                     value: None,
@@ -170,7 +174,8 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 cm_poseidon_path,
                 sn_poseidon_path,
                 fs_main_tree,
-                fs_sk: [Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng))],
+                fs_sk: [Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng))],
+                fs_rerandomize_public_key: [Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng))],
                 coin: Coin {
 //                    a_pk: Some(E::Fr::random(rng)),
                     value: Some(2u64.pow(59)),
@@ -258,7 +263,8 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
                 cm_poseidon_path,
                 sn_poseidon_path,
                 fs_main_tree,
-                fs_sk: [Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng)), Some(E::Fr::random(rng))],
+                fs_sk: [Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng))],
+                fs_rerandomize_public_key: [Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng)), Some(E::Fs::random(rng))],
                 coin: Coin {
                     value: Some(2u64.pow(59)),
                     rho: Some(E::Fr::random(rng)),

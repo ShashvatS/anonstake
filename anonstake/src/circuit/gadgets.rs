@@ -5,9 +5,11 @@ use bellman::gadgets::{boolean, num, Assignment};
 use zcash_proofs::circuit::pedersen_hash::pedersen_hash;
 use zcash_primitives::pedersen_hash::Personalization;
 use zcash_proofs::circuit::ecc;
-use zcash_proofs::circuit::ecc::EdwardsPoint;
+use zcash_proofs::circuit::ecc::{EdwardsPoint, fixed_base_multiplication};
 use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::num::{AllocatedNum, Num};
+use zcash_primitives::redjubjub;
+use std::io::Cursor;
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     pub fn poseidon_sbox<CS>(&self, mut cs: CS, namespace: &str, num: &Num<E>) -> Result<AllocatedNum<E>, SynthesisError>
@@ -687,10 +689,9 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             let mut bits = boolean::u64_into_boolean_vec_le(
                 cs.namespace(|| format!("{} get time diff bits", namespace)), tmp)?;
             bits.truncate(36);
-            bits
-        };
 
-        {
+            let time_bits = bits;
+
             let mut time_num = num::Num::<E>::zero();
 
             let mut coeff = E::Fr::one();
@@ -703,132 +704,197 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                        |_| time_num.lc(E::Fr::one()),
                        |lc| lc + CS::one(),
                        |lc| lc + time.get_variable());
-        }
 
-        let mut tree_sks = vec![];
-        let mut final_pks = vec![];
+            time_bits
+        };
 
-        for i in 0..4 {
-            let bits = &time_bits[9 * i..9 * (i + 1)];
-
-            let tree_sk = AllocatedNum::alloc(
-                cs.namespace(|| format!("{} calulate first sk {}", namespace, i)),
-                || self.aux_input.fs_sk[i].ok_or(SynthesisError::AssignmentMissing))?;
-
-            let tree_pk = self.crh_poseidon_or_pedersen_elem_with_zero(
-                cs.namespace(|| format!("{} calulate first pk {}", namespace, i)),
-                &format!("{} calulate first pk {}", namespace, i),
-                tree_sk.clone(),
-            )?;
-
-            tree_sks.push(tree_sk);
-
-            let mut cur_value = tree_pk.clone();
-
-            for j in 0..3 {
-                let tmp = (&bits[3 * j].get_value(), &bits[3 * j + 1].get_value(), &bits[3 * j + 2].get_value());
-
-                let idx: Option<u64> = if let (Some(a), Some(b), Some(c)) = tmp
-                {
-                    Some(1 * (*a as u64) + 2 * (*b as u64) + 4 * (*c as u64))
-                } else {
-                    None
-                };
-
-                let mut cur_path: Vec<AllocatedNum<E>> = vec![];
-                for k in 0..8 {
-                    let mut added = false;
-                    if let Some(check) = idx {
-                        if check == k {
-                            cur_path.push(
-                                cur_value.clone()
-                            );
-                            added = true;
-                        }
-                    }
-
-                    if !added {
-                        cur_path.push(
-                            AllocatedNum::alloc(
-                                cs.namespace(|| format!("{} allocate cur path {} {} {}", namespace, i, j, k)),
-                                || self.aux_input.fs_main_tree[i][j][k as usize].clone().ok_or(SynthesisError::AssignmentMissing),
-                            )?
-                        );
-                    }
-                }
-
-                //TODO: add check that constrains cur_value to cur_path[idx] or something ya
-
-                if self.use_poseidon {
-                    let t: [Num<E>; 8] = [cur_path[0].clone().into(), cur_path[1].clone().into(), cur_path[2].clone().into(), cur_path[3].clone().into(), cur_path[4].clone().into(), cur_path[5].clone().into(), cur_path[6].clone().into(), cur_path[7].clone().into()];
-
-                    let result = self.poseidon(
-                        cs.namespace(|| format!("{} tree hash {} {}", namespace, i, j)),
-                        &format!("{} hash {} {}", namespace, i, j),
-                        t)?;
-
-                    cur_value = AllocatedNum::alloc(
-                        cs.namespace(|| format!("{} allocate result {} {}", namespace, i, j)),
-                        || result.get_value().ok_or(SynthesisError::AssignmentMissing))?;
-                } else {
-                    //really should use for loops...
-
-                    let t0 = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 0),
-                        cur_path[0].clone(),
-                        cur_path[1].clone(),
-                    )?;
-
-                    let t1 = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 1),
-                        cur_path[2].clone(),
-                        cur_path[3].clone(),
-                    )?;
-
-                    let t2 = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 2),
-                        cur_path[4].clone(),
-                        cur_path[5].clone(),
-                    )?;
-
-                    let t3 = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 3),
-                        cur_path[6].clone(),
-                        cur_path[7].clone(),
-                    )?;
-
-                    let t4 = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 4),
-                        t0, t1)?;
-
-                    let t5 = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 5),
-                        t2, t3)?;
-
-                    cur_value = self.crh_poseidon_or_pedersen_elems(
-                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
-                        &format!("{} tree hash {} {} {}", namespace, i, j, 6),
-                        t4, t5)?;
-                }
-
-                final_pks.push(cur_value.clone());
-            }
-        }
-
-        for i in 0..3 {
-            let sk = tree_sks[i].clone();
-            let message = final_pks[i + 1].clone();
-            self.crh_poseidon_or_pedersen_elems(
-                cs.namespace(|| format!("{} last sig {}", namespace, i)),
-                &format!("{} last sig {}", namespace, i),
-                sk, message)?;
-        }
+//
+//        let fs_public_keys = {
+//            let f = |s: &E::Fs| redjubjub::PublicKey::<E>::from_private(&redjubjub::PrivateKey(s.clone()), FixedGenerators::SpendingKeyGenerator, self.constants.jubjub);
+//
+//            [self.aux_input.fs_sk[0].as_ref().map(f), self.aux_input.fs_sk[1].as_ref().map(f), self.aux_input.fs_sk[2].as_ref().map(f), self.aux_input.fs_sk[3].as_ref().map(f)]
+//        };
+//
+//        let mut final_pks = vec![];
+//
+//        for i in 0..4 {
+//            let bits = &time_bits[9 * i..9 * (i + 1)];
+//
+////            let tree_pk = {
+////                let alpha: Option<E::Fr> = {
+////                    let s = self.aux_input.fs_rerandomize_public_key[i].as_ref();
+////                    if let Some(s) = s {
+////                        let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+////                        s.into_repr().write_le(cursor.get_mut()).unwrap();
+////                        let mut read_elem = E::Fr::zero().into_repr();
+////
+////                        //TODO: avoid calling unwrap
+////                        read_elem.read_le(cursor).unwrap();
+////                        Some(E::Fr::from_repr(read_elem).unwrap())
+////                    } else {
+////                        None
+////                    }
+////                };
+////
+////                let alpha = AllocatedNum::alloc(
+////                    cs.namespace(|| format!("{} rerandomize the public key {}", namespace, i)),
+////                    || alpha.ok_or(SynthesisError::AssignmentMissing))?;
+////
+////                let alpha_bits = alpha.to_bits_le_strict(cs.namespace(
+////                    || format!("{} alpha bits {}", namespace, i)
+////                ))?;
+////
+////                let pk_circuit_point = EdwardsPoint::witness(
+////                    cs.namespace(|| format!("{} public key point {}", namespace, i)),
+////                    fs_public_keys[i].as_ref().map(|s| s.0.clone()),
+////                    &self.constants.jubjub,
+////                )?;
+////
+////                let ed_point = fixed_base_multiplication(
+////                    cs.namespace(|| format!("{} fixed base multiplication {}", namespace, i)),
+////                    FixedGenerators::SpendingKeyGenerator,
+////                    alpha_bits.as_slice(), &self.constants.jubjub)?;
+////
+////                let pk_randomized_circuit_point = pk_circuit_point.add(
+////                    cs.namespace(|| format!("{} point addition {}", namespace, i)),
+////                    &ed_point, &self.constants.jubjub)?;
+////
+////                pk_randomized_circuit_point.inputize(cs.namespace(|| format!("{} inputize point {}", namespace, i)))?;
+////
+////                pk_circuit_point.get_x().clone()
+////            };
+//
+//            let tree_pk = zero.clone();
+//            let mut cur_value = tree_pk.clone();
+//
+//            for j in 0..3 {
+//                let tmp = (&bits[3 * j].get_value(), &bits[3 * j + 1].get_value(), &bits[3 * j + 2].get_value());
+//
+//                let idx: Option<u64> = if let (Some(a), Some(b), Some(c)) = tmp
+//                {
+//                    Some(1 * (*a as u64) + 2 * (*b as u64) + 4 * (*c as u64))
+//                } else {
+//                    None
+//                };
+//
+//                let mut cur_path: Vec<AllocatedNum<E>> = vec![];
+//                for k in 0..8 {
+//                    let mut added = false;
+//                    if let Some(check) = idx {
+//                        if check == k {
+//                            cur_path.push(
+//                                cur_value.clone()
+//                            );
+//                            added = true;
+//                        }
+//                    }
+//
+//                    if !added {
+//                        cur_path.push(
+//                            AllocatedNum::alloc(
+//                                cs.namespace(|| format!("{} allocate cur path {} {} {}", namespace, i, j, k)),
+//                                || self.aux_input.fs_main_tree[i][j][k as usize].clone().ok_or(SynthesisError::AssignmentMissing),
+//                            )?
+//                        );
+//                    }
+//                }
+//
+//                //TODO: add check that constrains cur_value to cur_path[idx] or something ya
+//
+////                {
+////                    let mut path_remaining = cur_path.clone();
+////
+////                    for k in 0..3 {
+////                        let bit = &time_bits[9 * i + 3 * j + k];
+////
+////                        let mut next_path = vec![];
+////
+////                        for x in 0..(path_remaining.len() / 2) {
+////                            let a = path_remaining[2 * x].clone();
+////                            let b = path_remaining[2 * x + 1].clone();
+////
+////                            //lazy selection, can make one less auxiliary variable if I wanted to
+////                            let (a, _) = AllocatedNum::conditionally_reverse(
+////                                cs.namespace(|| format!("{} select values for merkle tree stuff {} {} {} {}", namespace, i, j, k, x)),
+////                                &a, &b, bit)?;
+////
+////                            next_path.push(a);
+////                        }
+////
+////                        path_remaining = next_path;
+////                    }
+////
+////                    let top = &path_remaining[0];
+////
+////                    cs.enforce(|| format!("{} enforce equal merkle tree selection {} {}", namespace, i, j),
+////                    |lc| lc + top.get_variable(),
+////                    |lc| lc + CS::one(),
+////                    |lc| lc + cur_value.get_variable());
+////
+////                }
+//
+//                if self.use_poseidon {
+//                    let t: [Num<E>; 8] = [cur_path[0].clone().into(), cur_path[1].clone().into(), cur_path[2].clone().into(), cur_path[3].clone().into(), cur_path[4].clone().into(), cur_path[5].clone().into(), cur_path[6].clone().into(), cur_path[7].clone().into()];
+//
+//                    let result = self.poseidon(
+//                        cs.namespace(|| format!("{} tree hash {} {}", namespace, i, j)),
+//                        &format!("{} hash {} {}", namespace, i, j),
+//                        t)?;
+//
+//                    cur_value = AllocatedNum::alloc(
+//                        cs.namespace(|| format!("{} allocate result {} {}", namespace, i, j)),
+//                        || result.get_value().ok_or(SynthesisError::AssignmentMissing))?;
+//                }
+//                else {
+//                    //really should use for loops...
+//
+//                    let t0 = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 0),
+//                        cur_path[0].clone(),
+//                        cur_path[1].clone(),
+//                    )?;
+//
+//                    let t1 = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 1),
+//                        cur_path[2].clone(),
+//                        cur_path[3].clone(),
+//                    )?;
+//
+//                    let t2 = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 2),
+//                        cur_path[4].clone(),
+//                        cur_path[5].clone(),
+//                    )?;
+//
+//                    let t3 = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 3),
+//                        cur_path[6].clone(),
+//                        cur_path[7].clone(),
+//                    )?;
+//
+//                    let t4 = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 4),
+//                        t0, t1)?;
+//
+//                    let t5 = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 5),
+//                        t2, t3)?;
+//
+//                    cur_value = self.crh_poseidon_or_pedersen_elems(
+//                        cs.namespace(|| format!("{} tree hash {} {} {}", namespace, i, j, 0)),
+//                        &format!("{} tree hash {} {} {}", namespace, i, j, 6),
+//                        t4, t5)?;
+//                }
+//
+//                final_pks.push(cur_value.clone());
+//            }
+//        }
 
         Ok(zero)
     }

@@ -14,7 +14,7 @@ pub struct PubInput<E: JubjubEngine> {
 //    pub role: Option<E::Fr>,
     pub role: Option<u64>,
     pub seed: Option<E::Fr>,
-    pub h: Option<E::Fr>
+    pub h_sig: Option<E::Fr>
 //    pub h_sig: Option<E::Fr>
 }
 
@@ -82,7 +82,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 //                tsn: None,
                 role: None,
                 seed: None,
-                h: None,
+                h_sig: None,
 //                h_sig: None,
             },
             aux_input: AuxInput {
@@ -165,7 +165,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 //                tsn: Some(E::Fr::random(rng)),
                 role: Some(rng.gen()),
                 seed: Some(E::Fr::random(rng)),
-                h: Some(E::Fr::random(rng)),
+                h_sig: Some(E::Fr::random(rng)),
 //                h_sig: Some(E::Fr::random(rng)),
             },
             aux_input: AuxInput {
@@ -254,7 +254,7 @@ impl<'a, E: JubjubEngine> AnonStake<'_, E> {
 //                tsn: Some(E::Fr::random(rng)),
                 role: Some(role),
                 seed: Some(E::Fr::random(rng)),
-                h: Some(E::Fr::random(rng)),
+                h_sig: Some(E::Fr::random(rng)),
 //                h_sig: Some(E::Fr::random(rng)),
             },
             aux_input: AuxInput {

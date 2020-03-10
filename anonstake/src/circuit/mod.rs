@@ -7,12 +7,12 @@ pub mod anonstake_inputs;
 use anonstake_inputs::*;
 use bellman::gadgets::boolean::{Boolean, AllocatedBit};
 use bellman::gadgets::{num, boolean};
-use bellman::gadgets::num::{AllocatedNum};
+use bellman::gadgets::num::{AllocatedNum, Num};
 
 pub mod gadgets;
 
 #[derive(Clone)]
-pub struct  AnonStake<'a, E: JubjubEngine> {
+pub struct AnonStake<'a, E: JubjubEngine> {
     pub constants: &'a crate::constants::Constants<'a, E>,
     pub is_bp: bool,
     pub use_poseidon: bool,
@@ -31,7 +31,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
 
         let a_pk = self.mimc_prf(cs.namespace(|| "calc a_pk"), "calc a_pk", a_sk.clone(), allocated_zero.clone(), &self.constants.mimc.prf_addr)?;
 
-        let (_role, role_bits, fs_start_bits, fs_pk) = self.forward_secure_tree(
+        let (role, role_bits, fs_start_bits, fs_pk) = self.forward_secure_tree(
             cs.namespace(|| "forward secure tree"), "forward secure tree")?;
 
         let (rho, pack) = self.constrain_packed_values(
@@ -81,6 +81,18 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
                     )?))
                 })
                 .collect::<Result<Vec<_>, SynthesisError>>()?
+        };
+
+        let j_i = {
+            let mut coeff = E::Fr::one();
+            let mut num = Num::zero();
+
+            for bit in &j_i_bits {
+                num = num.add_bool_with_coeff(CS::one(), bit, E::Fr::one());
+                coeff.double();
+            }
+
+            num
         };
 
         {
@@ -162,37 +174,103 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
 
             self.leq_not_fixed(cs.namespace(|| "compare sn sn_plus"), "compare sn sn_plus", &sn_bits, &sn_plus_bits)?;
 
-            let mut all_bits = sn_less_bits;
-            all_bits.extend(sn_plus_bits);
-
-            let sn_box = self.crh(cs.namespace(|| "calc sn box"), "calc sn_box", all_bits.as_ref())?;
+            let sn_box = if self.use_poseidon {
+                self.crh_poseidon_or_pedersen_elems(cs.namespace(|| "calc sn box"), "calc sn_box", sn_less, sn_plus)?
+            } else {
+                let mut all_bits = sn_less_bits;
+                all_bits.extend(sn_plus_bits);
+                self.crh(cs.namespace(|| "calc sn box"), "calc sn_box", all_bits.as_ref())?
+            };
 
             self.serial_number_nonmembership(cs.namespace(|| "sn merkle"), "sn merkle", sn_box)?;
         }
 
         {
-            let mut all_bits = rho.to_bits_le(cs.namespace(|| "rho bits"))?;
+            let hash = if self.use_poseidon {
+                let a = [Num::from(rho.clone()), Num::from(role.clone()), j_i.clone(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
 
-            all_bits.extend(role_bits.clone());
-            all_bits.extend(j_i_bits.clone());
+                let hash = self.poseidon(cs.namespace(|| "prehash calc tsn"), "prehash calc tsn", a)?;
 
-            let hash = self.crh(cs.namespace(|| "prehash calc tsn"), "prehash calc tsn", all_bits.as_ref())?;
+                let allocated_num = AllocatedNum::alloc(
+                    cs.namespace(|| "allocate hash for tsn calc"),
+                    || hash.get_value().ok_or(SynthesisError::AssignmentMissing))?;
+
+                cs.enforce(|| "ensure poseidon hash value = allocated num for h calc",
+                           |_| hash.lc(E::Fr::one()),
+                           |lc| lc + CS::one(),
+                           |lc| lc + allocated_num.get_variable());
+
+                allocated_num
+            }
+            else {
+                let mut all_bits = rho.to_bits_le(cs.namespace(|| "rho bits"))?;
+
+                all_bits.extend(role_bits.clone());
+                all_bits.extend(j_i_bits.clone());
+                self.crh(cs.namespace(|| "prehash calc tsn"), "prehash calc tsn", all_bits.as_ref())?
+            };
 
             let tsn = self.mimc_prf(cs.namespace(|| "calc tsn"), "calc tsn", a_sk.clone(), hash, &self.constants.mimc.prf_tsn)?;
             tsn.inputize(cs.namespace(|| "inputize tsn"))?;
         }
 
-        let h = AllocatedNum::alloc(cs.namespace(|| "allocate h"), || self.pub_input.h.ok_or(SynthesisError::AssignmentMissing))?;
-        h.inputize(cs.namespace(|| "inputize h"))?;
+        {
+            let h_sig = AllocatedNum::alloc(cs.namespace(|| "allocate h_sig"), || self.pub_input.h_sig.ok_or(SynthesisError::AssignmentMissing))?;
+            h_sig.inputize(cs.namespace(|| "inputize h_sig"))?;
 
-        let _h_sig = self.mimc_prf(cs.namespace(|| "calc h_sig"), "calc h sig", a_sk.clone(), h, &self.constants.mimc.prf_pk)?;
+            let hash = if self.use_poseidon {
+                let a = [Num::from(h_sig), Num::from(role.clone()), j_i.clone(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
+
+                let hash = self.poseidon(cs.namespace(|| "prehash calc for h"), "prehash calc for h", a)?;
+
+                let allocated_num = AllocatedNum::alloc(
+                    cs.namespace(|| "allocate hash for h calc"),
+                    || hash.get_value().ok_or(SynthesisError::AssignmentMissing))?;
+
+                cs.enforce(|| "ensure poseidon hash value = allocated num for tsn calc",
+                           |_| hash.lc(E::Fr::one()),
+                           |lc| lc + CS::one(),
+                           |lc| lc + allocated_num.get_variable());
+
+                allocated_num
+            }
+            else {
+                let mut all_bits = h_sig.to_bits_le(cs.namespace(|| "h_sig to bits"))?;
+                all_bits.extend(role_bits.clone());
+                all_bits.extend(j_i_bits.clone());
+
+                self.crh(cs.namespace(|| "hash for calc h"), "hash for calc h", all_bits.as_ref())?
+            };
+
+
+            let h = self.mimc_prf(cs.namespace(|| "calc h"), "calc h", a_sk.clone(), hash, &self.constants.mimc.prf_pk)?;
+            h.inputize(cs.namespace(|| "inputize h"))?;
+        }
 
         if self.is_bp {
-            let mut all_bits = role_bits.clone();
-            all_bits.extend(seed_sel_bits);
-            all_bits.extend(j_i_bits.clone());
+            let hash = if self.use_poseidon {
+                let a = [Num::from(role.clone()), Num::from(seed_sel.clone()), j_i.clone(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
 
-            let hash = self.crh(cs.namespace(|| "prehash calc priority"), "prehash calc priority", all_bits.as_ref())?;
+                let hash = self.poseidon(cs.namespace(|| "prehash calc priority"), "prehash calc tsn", a)?;
+
+                let allocated_num = AllocatedNum::alloc(
+                    cs.namespace(|| "allocate hash for priority"),
+                    || hash.get_value().ok_or(SynthesisError::AssignmentMissing))?;
+
+                cs.enforce(|| "ensure poseidon hash value = allocated num for priority calc",
+                           |_| hash.lc(E::Fr::one()),
+                           |lc| lc + CS::one(),
+                           |lc| lc + allocated_num.get_variable());
+
+                allocated_num
+            } else {
+                let mut all_bits = role_bits.clone();
+                all_bits.extend(seed_sel_bits);
+                all_bits.extend(j_i_bits.clone());
+
+                self.crh(cs.namespace(|| "prehash calc priority"), "prehash calc priority", all_bits.as_ref())?
+            };
+
             let priority = self.mimc_prf(cs.namespace(|| "calc priority"), "calc priority", a_sk.clone(), hash, &self.constants.mimc.prf_priority)?;
             priority.inputize(cs.namespace(|| "inputize priority"))?;
 
@@ -209,12 +287,16 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
                 self.bp_pub_input.r,
             )?;
 
-            let mut num = num::Num::zero();
-            let mut coeff = E::Fr::one();
-            for bit in &round_bits {
-                num = num.add_bool_with_coeff(CS::one(), bit, coeff);
-                coeff.double();
-            }
+            let num = {
+                let mut num = num::Num::zero();
+                let mut coeff = E::Fr::one();
+                for bit in &round_bits {
+                    num = num.add_bool_with_coeff(CS::one(), bit, coeff);
+                    coeff.double();
+                }
+
+                num
+            };
 
             cs.enforce(|| "round bits enforce",
                        |lc| lc + round.get_variable(),
@@ -227,7 +309,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
             let hash = self.crh(cs.namespace(|| "prehash calc seed_comp"), "prehash calc seed_comp", all_bits.as_ref())?;
 
             let seed_comp = self.mimc_prf(cs.namespace(|| "calc seed_comp"), "calc seed_comp", a_sk.clone(), hash, &self.constants.mimc.prf_seed)?;
-            seed_comp.inputize(cs.namespace(||"inputize seed_comp"))?;
+            seed_comp.inputize(cs.namespace(|| "inputize seed_comp"))?;
         }
 
         Ok(())

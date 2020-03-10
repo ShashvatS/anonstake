@@ -27,6 +27,7 @@ use crate::constants::Constants;
 pub mod constants;
 pub mod circuit;
 pub mod cli;
+pub mod poseidon;
 
 fn run_notification(config: &RunConfig, constants: &Constants<Bls12>) {
     let param = {

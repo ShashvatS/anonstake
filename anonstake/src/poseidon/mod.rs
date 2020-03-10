@@ -28,6 +28,10 @@ pub fn poseidon_hash<E: ScalarEngine>(poseidon: &PoseidonConstants<E>, elems: &[
         }
 
         for i in 0..9 {
+            output[i].add_assign(&poseidon.rounds[round][i]);
+        }
+
+        for i in 0..9 {
             state[i] = output[i];
         }
     }

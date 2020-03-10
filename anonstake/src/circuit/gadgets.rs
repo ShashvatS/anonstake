@@ -1,21 +1,21 @@
-use bellman::{ConstraintSystem, SynthesisError, Variable, LinearCombination};
-use zcash_primitives::jubjub::{JubjubEngine, FixedGenerators};
+use std::io::Cursor;
+
+use bellman::{ConstraintSystem, LinearCombination, SynthesisError, Variable};
+use bellman::gadgets::{Assignment, boolean, num};
+use bellman::gadgets::boolean::{AllocatedBit, Boolean};
+use bellman::gadgets::num::{AllocatedNum, Num};
 use ff::{Field, PrimeField, PrimeFieldRepr};
-use bellman::gadgets::{boolean, num, Assignment};
-use zcash_proofs::circuit::pedersen_hash::pedersen_hash;
+use zcash_primitives::jubjub::{FixedGenerators, JubjubEngine, ToUniform};
 use zcash_primitives::pedersen_hash::Personalization;
+use zcash_primitives::redjubjub;
 use zcash_proofs::circuit::ecc;
 use zcash_proofs::circuit::ecc::{EdwardsPoint, fixed_base_multiplication};
-use bellman::gadgets::boolean::{Boolean, AllocatedBit};
-use bellman::gadgets::num::{AllocatedNum, Num};
-use zcash_primitives::redjubjub;
-use std::io::Cursor;
+use zcash_proofs::circuit::pedersen_hash::pedersen_hash;
 
 impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
     pub fn poseidon_sbox<CS>(&self, mut cs: CS, namespace: &str, num: &Num<E>) -> Result<AllocatedNum<E>, SynthesisError>
         where CS: ConstraintSystem<E>
     {
-        //println!("poseidon sbox start");
         let square = AllocatedNum::alloc(
             cs.namespace(|| format!("{}: square", namespace)), || {
                 let mut tmp = num.get_value().ok_or(SynthesisError::AssignmentMissing)?;
@@ -24,16 +24,12 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             },
         )?;
 
-        //println!("poseidon sbox square");
-
         cs.enforce(|| format!("{}: enforce square", namespace),
                    |_| num.lc(E::Fr::one()),
                    |_| num.lc(E::Fr::one()),
                    |lc| lc + square.get_variable());
 
         let square_square = square.square(cs.namespace(|| format!("{}: square square", namespace)))?;
-
-        //println!("poseidon sbox square square");
 
         let ans = AllocatedNum::alloc(
             cs.namespace(|| format!("{}: final", namespace)), || {
@@ -48,15 +44,12 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                    |lc| lc + square_square.get_variable(),
                    |lc| lc + ans.get_variable());
 
-        //println!("poseidon sbox end");
         Ok(ans)
     }
 
     pub fn poseidon_round<CS>(&self, mut cs: CS, namespace: &str, mut input: [Num<E>; 9], round: usize) -> Result<[Num<E>; 9], SynthesisError>
         where CS: ConstraintSystem<E>
     {
-        //println!("poseidon round");
-
         if round < self.constants.poseidon.r_f / 2 || round >= self.constants.poseidon.r_p + self.constants.poseidon.r_f / 2 {
             for i in 0..9 {
                 let str = format!("{}: {} {}", namespace, round, i);
@@ -694,7 +687,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
 
 
     pub fn forward_secure_tree_main<CS>(&self, mut cs: CS, namespace: &str, time: AllocatedNum<E>) -> Result<AllocatedNum<E>, SynthesisError>
-        where CS: ConstraintSystem<E> {
+        where CS: ConstraintSystem<E>, E::Fs: ToUniform {
         let time_bits: Vec<Boolean> = {
             let tmp = if let (Some(a), Some(b)) = (self.pub_input.role, self.aux_input.fs_tree_start) {
                 Some(a - b)
@@ -724,20 +717,15 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             time_bits
         };
 
-        let fs_public_keys = {
-            let f = |s: &E::Fs| redjubjub::PublicKey::<E>::from_private(&redjubjub::PrivateKey(s.clone()), FixedGenerators::SpendingKeyGenerator, self.constants.jubjub);
+        let mut final_pks: Vec<AllocatedNum<E>> = vec![];
 
-            [self.aux_input.fs_sk[0].as_ref().map(f), self.aux_input.fs_sk[1].as_ref().map(f), self.aux_input.fs_sk[2].as_ref().map(f), self.aux_input.fs_sk[3].as_ref().map(f)]
-        };
-
-        let mut final_pks = vec![];
-
+        //TODO: refactor this code
         for i in 0..4 {
             let bits = &time_bits[9 * i..9 * (i + 1)];
 
-            let tree_pk = {
-                let alpha: Option<E::Fr> = {
-                    let s = self.aux_input.fs_rerandomize_public_key[i].as_ref();
+            let tree_pk = if i == 0 {
+                let sk: Option<E::Fr> = {
+                    let s = self.aux_input.fs_sk[i].as_ref();
                     if let Some(s) = s {
                         let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
                         s.into_repr().write_le(cursor.get_mut()).unwrap();
@@ -751,32 +739,142 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                     }
                 };
 
-                let alpha = AllocatedNum::alloc(
-                    cs.namespace(|| format!("{} rerandomize the public key {}", namespace, i)),
-                    || alpha.ok_or(SynthesisError::AssignmentMissing))?;
+                let sk = AllocatedNum::alloc(
+                    cs.namespace(|| format!("{} allocate secret key {}", namespace, i)),
+                    || sk.ok_or(SynthesisError::AssignmentMissing))?;
 
-                let alpha_bits = alpha.to_bits_le_strict(cs.namespace(
-                    || format!("{} alpha bits {}", namespace, i)
-                ))?;
+                let pk = self.crh_poseidon_or_pedersen_elem_with_zero(
+                    cs.namespace(|| format!("{} calculate public key {}", namespace, i)),
+                    &format!("{} calculate public key {}", namespace, i),
+                    sk)?;
 
-                let pk_circuit_point = EdwardsPoint::witness(
-                    cs.namespace(|| format!("{} public key point {}", namespace, i)),
-                    fs_public_keys[i].as_ref().map(|s| s.0.clone()),
-                    &self.constants.jubjub,
-                )?;
+                pk
+            } else {
+                // https://en.wikipedia.org/wiki/Schnorr_signature
+                // use schnorr signature instead of ECDSA
 
-                let ed_point = fixed_base_multiplication(
-                    cs.namespace(|| format!("{} fixed base multiplication {}", namespace, i)),
-                    FixedGenerators::SpendingKeyGenerator,
-                    alpha_bits.as_slice(), &self.constants.jubjub)?;
+                // here we have access to the secret key
+                // TODO: change so that the signature is already computed elsewhere
+                let pk = {
+                    let pk = {
+                        let f = |s: &E::Fs| redjubjub::PublicKey::<E>::from_private(&redjubjub::PrivateKey(s.clone()), FixedGenerators::SpendingKeyGenerator, self.constants.jubjub);
+                        self.aux_input.fs_sk[i].as_ref().map(f)
+                    };
 
-                let pk_randomized_circuit_point = pk_circuit_point.add(
-                    cs.namespace(|| format!("{} point addition {}", namespace, i)),
-                    &ed_point, &self.constants.jubjub)?;
+                    let pk = EdwardsPoint::witness(
+                        cs.namespace(|| format!("{} public key point {}", namespace, i)),
+                        pk.map(|s| s.0.clone()),
+                        &self.constants.jubjub,
+                    )?;
 
-                pk_randomized_circuit_point.inputize(cs.namespace(|| format!("{} inputize point {}", namespace, i)))?;
+                    pk
+                };
 
-                pk_circuit_point.get_x().clone()
+                let (s, e) = {
+                    let r = {
+                        let f = |s: &E::Fs| redjubjub::PublicKey::<E>::from_private(&redjubjub::PrivateKey(s.clone()), FixedGenerators::SpendingKeyGenerator, self.constants.jubjub);
+                        self.aux_input.fs_rerandomize_public_key[i].as_ref().map(f)
+                    };
+
+                    let e = AllocatedNum::alloc(
+                        cs.namespace(|| format!("{} allocate e {}", namespace, i)),
+                        || {
+                            if let (Some(r), Some(m)) = (r, final_pks[i - 1].get_value()) {
+                                if self.use_poseidon {
+                                    let arr = vec![r.0.to_xy().0, m, E::Fr::zero(), E::Fr::zero(), E::Fr::zero(), E::Fr::zero(), E::Fr::zero(), E::Fr::zero()];
+
+                                    Ok(crate::poseidon::poseidon_hash(&self.constants.poseidon, arr.as_slice()))
+                                } else {
+                                    let mut bits = vec![];
+
+                                    let mut repr = r.0.to_xy().0.into_repr();
+                                    for _ in 0..256 {
+                                        bits.push(repr.is_odd());
+                                        repr.div2();
+                                    }
+
+                                    let mut repr = m.into_repr();
+                                    for _ in 0..256 {
+                                        bits.push(repr.is_odd());
+                                        repr.div2();
+                                    }
+
+                                    let result = zcash_primitives::pedersen_hash::pedersen_hash::<E, _>(
+                                        Personalization::MerkleTree(0), bits, &self.constants.jubjub);
+
+                                    Ok(result.to_xy().0)
+                                }
+                            } else {
+                                Err(SynthesisError::AssignmentMissing)
+                            }
+                        },
+                    )?;
+
+                    let s = AllocatedNum::alloc(
+                        cs.namespace(|| format!("{} allocate s {}", namespace, i)),
+                        || {
+                            let k = &self.aux_input.fs_rerandomize_public_key[i];
+                            let x = &self.aux_input.fs_sk[i];
+                            if let (Some(k), Some(mut x), Some(e)) =
+                            (k, x, e.get_value()) {
+                                let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+                                e.into_repr().write_le(cursor.get_mut()).unwrap();
+
+                                let mut vec8 = cursor.into_inner();
+                                while vec8.len() < 64 {
+                                    vec8.push(0);
+                                }
+
+                                let e = E::Fs::to_uniform(&vec8);
+
+                                let mut k = (*k).clone();
+                                x.mul_assign(&e);
+                                k.sub_assign(&x);
+
+                                let mut cursor: Cursor<Vec<u8>> = Cursor::new(Vec::new());
+                                k.into_repr().write_le(cursor.get_mut()).unwrap();
+                                let mut read_elem = E::Fr::zero().into_repr();
+
+                                //TODO: avoid calling unwrap
+                                read_elem.read_le(cursor).unwrap();
+                                Ok(E::Fr::from_repr(read_elem).unwrap())
+                            } else {
+                                Err(SynthesisError::AssignmentMissing)
+                            }
+                        },
+                    )?;
+
+                    (s, e)
+                };
+
+                let r = {
+                    let s_bits = s.to_bits_le_strict(cs.namespace(|| format!("{} s bits {}", namespace, i)))?;
+                    let p1 = fixed_base_multiplication(
+                        cs.namespace(|| format!("{} fixed base multiplication {}", namespace, i)),
+                        FixedGenerators::SpendingKeyGenerator,
+                        &s_bits,
+                        &self.constants.jubjub)?;
+
+                    let e_bits = e.to_bits_le_strict(cs.namespace(|| format!("{} e bits {}", namespace, i)))?;
+
+                    let p2 = pk.mul(cs.namespace(|| format!("{} point multiplication {}", namespace, i)),
+                                    &e_bits, self.constants.jubjub)?;
+
+                    p1.add(cs.namespace(|| format!("{} point add {}", namespace, i)),
+                           &p2, self.constants.jubjub)?
+                };
+
+                let check = self.crh_poseidon_or_pedersen_elems(
+                    cs.namespace(|| format!("{} main check {}", namespace, i)),
+                    &format!("{} main check {}", namespace, i),
+                    r.get_x().clone(), final_pks[i - 1].clone())?;
+
+                cs.enforce(|| format!("{} main assertion {}", namespace, i),
+                           |lc| lc + e.get_variable(),
+                           |lc| lc + CS::one(),
+                           |lc| lc + check.get_variable());
+
+                pk.get_x().clone()
             };
 
             let mut cur_value = tree_pk.clone();
@@ -842,9 +940,9 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
                     let top = &path_remaining[0];
 
                     cs.enforce(|| format!("{} enforce equal merkle tree selection {} {}", namespace, i, j),
-                    |lc| lc + top.get_variable(),
-                    |lc| lc + CS::one(),
-                    |lc| lc + cur_value.get_variable());
+                               |lc| lc + top.get_variable(),
+                               |lc| lc + CS::one(),
+                               |lc| lc + cur_value.get_variable());
                 }
 
                 if self.use_poseidon {
@@ -1657,7 +1755,6 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             };
 
             let calc_constraints_regular = 163 * num_binom_values;
-            ////println!("{}", log_num_values);
             let calc_constraints_advanced = (2 << log_num_values) + 403 * log_num_values - 241;
 
             let num =

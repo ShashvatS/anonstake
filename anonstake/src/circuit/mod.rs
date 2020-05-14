@@ -219,7 +219,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
             h_sig.inputize(cs.namespace(|| "inputize h_sig"))?;
 
             let hash = if self.use_poseidon {
-                let a = [Num::from(h_sig), Num::from(role.clone()), j_i.clone(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
+                let a = [Num::from(h_sig), Num::from(role.clone()), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero(), Num::zero()];
 
                 let hash = self.poseidon(cs.namespace(|| "prehash calc for h"), "prehash calc for h", a)?;
 
@@ -237,7 +237,6 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
             else {
                 let mut all_bits = h_sig.to_bits_le(cs.namespace(|| "h_sig to bits"))?;
                 all_bits.extend(role_bits.clone());
-                all_bits.extend(j_i_bits.clone());
 
                 self.crh(cs.namespace(|| "hash for calc h"), "hash for calc h", all_bits.as_ref())?
             };

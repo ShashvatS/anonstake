@@ -180,7 +180,7 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok((role, role_bits))
     }
 
-    pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, a_pk: AllocatedNum<E>, pack: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, Vec<Boolean>), SynthesisError>
+    pub fn constrain_coin_commitment<CS>(&self, mut cs: CS, namespace: &str, full_pk: AllocatedNum<E>, rho: AllocatedNum<E>) -> Result<(EdwardsPoint<E>, Num<E>, Vec<Boolean>), SynthesisError>
         where CS: ConstraintSystem<E>
     {
         // Compute note contents:
@@ -211,12 +211,11 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             note_contents.extend(value_bits.clone());
         }
 
-//        let a_pk_alloc = AllocatedNum::alloc(cs.namespace(|| "a_pk_alloc"), || self.aux_input.coin.a_pk.ok_or(SynthesisError::AssignmentMissing))?;
-        let a_pk_bits = a_pk.to_bits_le(cs.namespace(|| "a_pk_bits"))?;
-        let pack_bits = pack.to_bits_le(cs.namespace(|| "pack bits"))?;
+        let full_pk_bits = full_pk.to_bits_le(cs.namespace(|| "a_pk_bits"))?;
+        let rho_bits = rho.to_bits_le(cs.namespace(|| "pack bits"))?;
 
-        note_contents.extend(a_pk_bits);
-        note_contents.extend(pack_bits);
+        note_contents.extend(full_pk_bits);
+        note_contents.extend(rho_bits);
 
         // Compute the hash of the note contents
         let mut cm: EdwardsPoint<E> = pedersen_hash(
@@ -253,17 +252,15 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
         Ok((cm, value_num, value_bits))
     }
 
-    pub fn constrain_packed_values<CS>(&self, mut cs: CS, namespace: &str, fs_start_bits: Vec<Boolean>, fs_pk: AllocatedNum<E>) -> Result<(AllocatedNum<E>, AllocatedNum<E>), SynthesisError>
+    pub fn constrain_full_pk<CS>(&self, mut cs: CS, namespace: &str, fs_start_bits: Vec<Boolean>, fs_pk: AllocatedNum<E>, a_pk: AllocatedNum<E>) -> Result<(AllocatedNum<E>), SynthesisError>
         where CS: ConstraintSystem<E> {
-        let rho_alloc = AllocatedNum::alloc(cs.namespace(|| "cs alloc"),
-                                            || self.aux_input.coin.rho.ok_or(SynthesisError::AssignmentMissing))?;
-        let rho_bits = rho_alloc.to_bits_le(cs.namespace(|| "rho bits"))?;
-
         let fs_pk_bits = fs_pk.to_bits_le(cs.namespace(|| "fs_pk_bits"))?;
+
+        let a_pk_bits = a_pk.to_bits_le(cs.namespace(|| "a_pk_bits"))?;
 
         let mut bits = fs_start_bits;
         bits.extend(fs_pk_bits);
-        bits.extend(rho_bits);
+        bits.extend(a_pk_bits);
 
         let hash_point: EdwardsPoint<E> = pedersen_hash(
             cs.namespace(|| namespace.to_owned() + "compute hash"),
@@ -272,9 +269,9 @@ impl<'a, E: JubjubEngine> super::AnonStake<'a, E> {
             self.constants.jubjub,
         )?;
 
-        let pack = hash_point.get_x().clone();
+        let full_pk = hash_point.get_x().clone();
 
-        Ok((rho_alloc, pack))
+        Ok(full_pk)
     }
 
     //copied directly from zcash

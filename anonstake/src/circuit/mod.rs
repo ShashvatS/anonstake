@@ -34,13 +34,16 @@ impl<'a, E: JubjubEngine> Circuit<E> for AnonStake<'a, E> {
         let (role, role_bits, fs_start_bits, fs_pk) = self.forward_secure_tree(
             cs.namespace(|| "forward secure tree"), "forward secure tree")?;
 
-        let (rho, pack) = self.constrain_packed_values(
+        let rho = AllocatedNum::alloc(cs.namespace(|| "rho alloc"),
+                                            || self.aux_input.coin.rho.ok_or(SynthesisError::AssignmentMissing))?;
+
+        let full_pk = self.constrain_full_pk(
             cs.namespace(|| "constrain packed values"),
-            "constrain packed values", fs_start_bits, fs_pk)?;
+            "constrain packed values", fs_start_bits, fs_pk, a_pk.clone())?;
 
         let (cm, _value, value_bits) = self.constrain_coin_commitment(
             cs.namespace(|| "coin commitment computation"),
-            "coin commitment computation", a_pk, pack)?;
+            "coin commitment computation", full_pk, rho.clone())?;
         self.coin_commitment_membership(cs.namespace(|| "coin commitment membership"), "coin commitment membership", cm)?;
 
         let seed_sel = AllocatedNum::alloc(cs.namespace(|| "allocate seed_sel"), || self.pub_input.seed.ok_or(SynthesisError::AssignmentMissing))?;
